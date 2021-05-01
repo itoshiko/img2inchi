@@ -5,21 +5,28 @@ import torch.nn.functional as F
 from torch import Tensor
 import time
 from torch.nn import (TransformerEncoder, TransformerDecoder,
-                      TransformerEncoderLayer, TransformerDecoderLayer, Linear)
-from torch.nn import Dropout, LayerNorm, MultiheadAttention
+                      TransformerEncoderLayer, TransformerDecoderLayer)
+from torch.nn import Dropout, LayerNorm, MultiheadAttention, Linear, Softmax
 from typing import Optional
 PAD_ID = 0
 
-device = 'cuda' if torch.cuda.is_available() else 'cpu'
 
 class PositionalEncodingNd(nn.Module):
     def __init__(self, d_pos: int, max_size: int, emb_size: int):
+        """
+        Embedding the (absolute) positional encodings to some data
+
+        :param d_pos: the dimension of positional space
+        :param max_size: the max lenth of each positional dimension
+        :param emb_size: the dimension of features at every position, or the dimension of the model
+        """
         super(PositionalEncodingNd, self).__init__()
         self.emb_size = emb_size
         self.d_pos = d_pos
         den = torch.exp(- torch.arange(0, emb_size, 2 * d_pos) * math.log(10000) / emb_size)
+        self.num = len(den)
         pos = torch.arange(0, max_size).reshape(max_size, 1)
-        pos_embedding = torch.zeros((max_size, emb_size))
+        pos_embedding = torch.zeros(max_size, 2 * self.num)
         pos_embedding[:, 0::2] = torch.sin(pos * den)
         pos_embedding[:, 1::2] = torch.cos(pos * den)
 
@@ -27,19 +34,21 @@ class PositionalEncodingNd(nn.Module):
 
     def forward(self, token_embedding: Tensor):
         """
-        :param token_embedding: shape (seq lenth, batch_size, emb_size)
+        :param token_embedding: shape ((positional), batch_size, emb_size)
+        :return: the data after embedding positional encodings
         """
-        shape = token_embedding.shape
+        input_shape = token_embedding.shape
         for dim in range(self.d_pos):  # dim == 0; 1
             prepad = dim * 2 * self.num  # 0; 256
-            postpad = self.d_model - (dim + 1) * 2 * self.num  # 256; 0
-            embed = self.pos_embedding[:, :shape[dim]]
-            embed = F.pad(embed, (0, 0, prepad, postpad))  # [512, 14]
-            shape = [1] * dim + embed.shape[0] + [1] * (self.d_pos - dim + 2) + embed.shape[1]
-            embed.view(shape)
+            postpad = self.emb_size - (dim + 1) * 2 * self.num  # 256; 0
+            embed = self.pos_embedding[:input_shape[dim], :]
+            embed = F.pad(embed, (prepad, postpad, 0, 0))  # [512, 14]
+            shape = [1] * dim + [embed.shape[0]] + [1] * (self.d_pos - dim) + [embed.shape[1]]
+            embed = embed.view(shape)
             token_embedding += embed  # [1, 512, 14, 1]; [1, 512, 1, 14]
         return token_embedding
 
+'''
 class DecoderLayer(nn.Module):
     def __init__(self, dim_encoder, dim_decoder, nhead, dim_feedforward=2048, dropout=0.1, activation="relu"):
         super(DecoderLayer, self).__init__()
@@ -81,28 +90,29 @@ class DecoderLayer(nn.Module):
         tgt = tgt + self.dropout3(tgt2)
         tgt = self.norm3(tgt)
         return tgt
+'''
 
 class Img2SeqTransformer(nn.Module):
     def __init__(self, patch_size: int, max_img_size: int, max_seq_len: int,
                 num_encoder_layers: int, num_decoder_layers: int,
-                 dim_encoder: int, dim_decoder: int, nhead: int, vocab_size: int,
-                 dim_feedforward:int = 512, dropout:float = 0.1):
+                d_model: int, nhead: int, vocab_size: int,
+                dim_feedforward:int = 512, dropout:float = 0.1):
         super(Img2SeqTransformer, self).__init__()
         patch_size = (patch_size // 2) * 2
         self.patch_size = patch_size
-        self.dim_encoder = dim_encoder
-        encoder_layer = TransformerEncoderLayer(d_model=dim_encoder, nhead=nhead,
+        self.d_model = d_model
+        encoder_layer = TransformerEncoderLayer(d_model=d_model, nhead=nhead,
                                                 dim_feedforward=dim_feedforward)
         self.transformer_encoder = TransformerEncoder(encoder_layer, num_layers=num_encoder_layers)
-        decoder_layer = DecoderLayer(dim_encoder=dim_encoder, dim_decoder=dim_decoder, nhead=nhead,
+        decoder_layer = TransformerDecoderLayer(d_model=d_model, nhead=nhead,
                                                 dim_feedforward=dim_feedforward)
         self.transformer_decoder = TransformerDecoder(decoder_layer, num_layers=num_decoder_layers)
-        self.patch_emb = Linear(patch_size * patch_size, dim_encoder)
-        self.seq_emb = Linear(patch_size * patch_size, dim_encoder)
-        self.generator = Linear(dim_decoder, vocab_size)
+        self.patch_emb = Linear(patch_size * patch_size, d_model)
+        self.generator = nn.Sequential(Linear(d_model, vocab_size), Softmax(dim=2))
+        self.seq_emb = TokenEmbedding(vocab_size, d_model)
         max_embeded_img = int(2 * float(max_img_size) / float(patch_size)) - 1
-        self.positional_encoding_img = PositionalEncodingNd(d_pos=2, max_size=max_embeded_img, emb_size=dim_encoder)
-        self.positional_encoding_seq = PositionalEncodingNd(d_pos=1, max_size=max_seq_len, emb_size=dim_decoder)
+        self.positional_encoding_img = PositionalEncodingNd(d_pos=2, max_size=max_embeded_img, emb_size=d_model)
+        self.positional_encoding_seq = PositionalEncodingNd(d_pos=1, max_size=max_seq_len, emb_size=d_model)
 
     def forward(self, img: Tensor, seq: Tensor):
         memory = self.encode(img)
@@ -126,43 +136,56 @@ class Img2SeqTransformer(nn.Module):
         h += pad_h
         w0 = 2 * w // patch_size - 1
         h0 = 2 * h // patch_size - 1
-        patch = torch.zeros(batch_size, h0 * patch_size, w0 * patch_size)
+        patch = torch.zeros((batch_size, h0 * patch_size, w0 * patch_size), device=self.get_device())
         ind_w = []
         ind_h = []
         for i in range(w // patch_size):
             ind_w += range(i * 2 * patch_size, (i * 2 + 1) * patch_size)
         for i in range(h // patch_size):
             ind_h += range(i * 2 * patch_size, (i * 2 + 1) * patch_size)
-        patch[:, ind_h, ind_w] = img
-        del ind_w[-patch_size:], ind_h[-patch_size:]
+        ind_w = Tensor(ind_w).long()
+        ind_h = Tensor(ind_h).long()
+        (patch[:, ind_h, :])[:, :, ind_w] = img
+        ind_w = ind_w[:-patch_size]
+        ind_h = ind_h[:-patch_size]
         ind_w = ind_w + patch_size // 2
         ind_h = ind_h + patch_size // 2
-        patch[:, ind_h, ind_w] = img[:, patch_size // 2:-(patch_size // 2), patch_size // 2:-(patch_size // 2)]
+        (patch[:, ind_h, :])[:, :, ind_w] = img[:, patch_size // 2:-(patch_size // 2), patch_size // 2:-(patch_size // 2)]
         patch = patch.view(batch_size, h0, patch_size, w0, patch_size)
         patch = patch.permute(0, 1, 3, 2, 4)
         patch = patch.reshape(batch_size, h0, w0, -1)
         return patch
 
+    def get_device(self):
+        return next(self.parameters()).device
+
     def generate_square_subsequent_mask(self, size):
-        mask = (torch.triu(torch.ones((size, size), device=device)) == 1).transpose(0, 1)
+        mask = (torch.triu(torch.ones((size, size), device=self.get_device())) == 1).transpose(0, 1)
         mask = mask.float().masked_fill(mask == 0, float('-inf')).masked_fill(mask == 1, float(0.0))
         return mask
 
     def encode(self, img: Tensor):
         batch_size = img.shape[0]
         patch = self.img_split(img)                     # (batch_size, h0, w0, patch_size * patch_size)
-        patch = self.patch_emb(patch)                   # (batch_size, h0, w0, dim_encoder)
-        patch = patch.permute(1, 2, 0, 3).contigous()   # (h0, w0, batch_size, dim_encoder)
-        img_emb = self.positional_encoding_img(patch).view(-1, batch_size, self.dim_encoder)
-        return self.transformer_encoder(src=img_emb, src_mask=None, src_padding_mask=None)
+        patch = self.patch_emb(patch)                   # (batch_size, h0, w0, d_model)
+        patch = patch.permute(1, 2, 0, 3).contiguous()   # (h0, w0, batch_size, d_model)
+        img_emb = self.positional_encoding_img(patch).view(-1, batch_size, self.d_model)
+        return self.transformer_encoder(src=img_emb, mask=None, src_key_padding_mask=None)
 
     def decode(self, seq: Tensor, memory: Tensor):
         seq_emb = self.positional_encoding_seq(self.seq_emb(seq))
         tgt_mask = self.generate_square_subsequent_mask(seq.shape[0])
-        tgt_padding_mask = (seq == PAD_ID).transpose(0, 1) if self.trainning else None
-        return self.transformer_decoder(tgt=seq_emb, memory=memory, tgt_mask=tgt_mask,
-                                        tgt_padding_mask=tgt_padding_mask, memory_key_padding_mask=None)
+        tgt_padding_mask = (seq == PAD_ID).transpose(0, 1) if self.training else None
+        return self.transformer_decoder(tgt=seq_emb, memory=memory, tgt_mask=tgt_mask, memory_mask=None,
+                                        tgt_key_padding_mask=tgt_padding_mask, memory_key_padding_mask=None)
 
+class TokenEmbedding(nn.Module):
+    def __init__(self, vocab_size: int, emb_size):
+        super(TokenEmbedding, self).__init__()
+        self.embedding = nn.Embedding(vocab_size, emb_size)
+        self.emb_size = emb_size
+    def forward(self, tokens: Tensor):
+        return self.embedding(tokens.long()) * math.sqrt(self.emb_size)
 
 def _get_activation_fn(activation):
     if activation == "relu":

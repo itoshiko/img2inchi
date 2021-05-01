@@ -7,17 +7,17 @@ import os
 from utils import root, join_path
 
 
-if_gen_vocab = True
-if_preprocessed = True
-if_split = True
+if_gen_vocab = False
+if_preprocessed = False
+if_split = False
 
 DEBUG = False
 MAX_INCHI_LEN = 200
-IMG_WIDTH = 1024
-IMG_HEIGHT = 512
+IMG_WIDTH = 512
+IMG_HEIGHT = 256
 THRESHOLD = 50
-VAL_SIZE = int(40e3)
-TRAIN_SIZE = int(120e3)
+VAL_SIZE = int(10e3)
+TRAIN_SIZE = int(40e3)
 CHUNK_SIZE = int(40e3)
 SOS = '<SOS>'
 EOS = '<EOS>'
@@ -58,20 +58,6 @@ def build_vocabulary(train_set):
     with open(join_path(root, "int_to_vocab.pkl"), "wb") as f:
         pickle.dump(int_to_vocab, f)
 
-def to_int(inchi):
-    if not (inchi[:8] == "InChI=1S"):
-        raise Exception("Not Matching 'InChI=1S'")
-    inchi = inchi[8:]
-    res = []
-    res.append(vocab_to_int[SOS])
-    for c in inchi:
-        res.append(vocab_to_int[c])
-    return np.array(res, dtype=np.uint8)
-
-def encoding_lables(data):
-    data['InChI'] = data['InChI'].apply(to_int)
-    return data
-
 def preprocess_train_set(train_set):
     if if_preprocessed:
         try:
@@ -110,9 +96,9 @@ def create_dirs(path, *subdirs):
     if not os.path.exists(path):
         os.makedirs(path)
 
-def create_data_dirs():
+def create_data_dirs(name):
     l = ['0', '1', '2', '3', '4', '5', '6', '7', '8', '9', 'a', 'b', 'c', 'd', 'e', 'f']
-    data_root = join_path(root, "processed_data")
+    data_root = join_path(root, "prcd_data", name)
     create_dirs(data_root)
     for d1 in l:
         create_dirs(data_root, d1)
@@ -120,6 +106,7 @@ def create_data_dirs():
             create_dirs(data_root, d1, d2)
             for d3 in l:
                 create_dirs(data_root, d1, d2, d3)
+    return data_root
 
 def pad_resize(img):
     h, w = img.shape
@@ -152,7 +139,7 @@ def pad_resize(img):
 
     return img
 
-def process_img(img_id, source_folder="train", target_folder="processed_data"):
+def prc_img(img_id, source_folder="train", target_folder="prcd_data"):
     source_file_path =  join_path(root, source_folder, img_id[0], img_id[1], img_id[2], f'{img_id}.png')
     target_file_path =  join_path(root, target_folder, img_id[0], img_id[1], img_id[2], f'{img_id}.png')
     img = 255 - cv2.imread(source_file_path, cv2.IMREAD_GRAYSCALE)
@@ -172,21 +159,21 @@ def process_img(img_id, source_folder="train", target_folder="processed_data"):
         cv2.waitKey(0) 
         cv2.destroyAllWindows()
 
+def prc_imgs(data, name):
+    data_root = create_data_dirs(name)
+    l = 10 if DEBUG else len(data) 
+    for i in tqdm(range(l)):
+        prc_img(data.loc[i, 'image_id'], target_folder=data_root)
+
+
 if __name__ == "__main__":
     train_set = read_train_set()
     build_vocabulary(train_set)
-    print(vocab_to_int)
-    '''
     if not if_split:
         train_set = preprocess_train_set(train_set)
         print(train_set.head(3))
     val_set, train_set = train_val_split(train_set)
-    encoding_lables(val_set)
-    encoding_lables(train_set)
     print(train_set.info())
     print(val_set.info())
-    create_data_dirs()
-    l = 10 if DEBUG else len(train_set) 
-    for i in tqdm(range(l)):
-        process_img(train_set.loc[i, 'image_id'])
-    '''
+    prc_imgs(train_set, 'train')
+    prc_imgs(val_set, 'validate')
