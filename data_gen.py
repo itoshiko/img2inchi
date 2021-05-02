@@ -21,7 +21,8 @@ class Img2SeqDataset(Dataset):
         img_id = self.img_labels.iloc[i, 0]
         label = self.img_labels.iloc[i, 1]
         img = utils.read_img(img_id, self.img_dir)
-        img = self.img_trans(img).squeeze(0)
+        # img = self.img_trans(img).squeeze(0)
+        img = self.img_trans(img)
         label = self.vocab.tokenizer(label)
         return img, label
 

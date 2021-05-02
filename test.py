@@ -1,13 +1,18 @@
 import NetModel_Transformer as tfm
 import torch
+import torch.nn as nn
 from data_gen import Img2SeqDataset, get_dataLoader
 from utils import root
 import time, os
+from torchvision import models
+from utils import vocab
 
 BATCH_SIZE = 8
 EPOCHS = 10
 PAD_ID = 0
 device = 'cuda:0' if torch.cuda.is_available() else 'cpu'
+pretrained_ResNet101_path = "model weights/ResNet101.pth"
+_vocab = vocab()
 
 loss_fn = torch.nn.CrossEntropyLoss(ignore_index=PAD_ID)
 
@@ -40,10 +45,10 @@ def train_epoch(model, train_iter, optimizer):
     size = len(train_iter) * BATCH_SIZE
     start_t = time.time()
     for idx, (img, seq) in enumerate(train_iter):
-        img = img.cuda()
-        seq = seq.cuda()
+        img = img.to(device)
+        seq = seq.to(device)
         seq_input = seq[:-1, :]
-        logits = model(img, seq_input)
+        logits = model(img, seq_input)  # (lenth, batch_size, vocab_size)
         optimizer.zero_grad()
         seq_out = seq[1:, :]
         loss = loss_fn(logits.reshape(-1, logits.shape[-1]), seq_out.reshape(-1))
@@ -54,9 +59,15 @@ def train_epoch(model, train_iter, optimizer):
         if idx % 60 == 0:
             end_t = time.time()
             print(f"loss: {loss:>7f}  [{idx * BATCH_SIZE:>5d}/{size:>5d}]; time: {(end_t - start_t):.3f}")
+            print("Our output:", _vocab.translate(greedy_decode(logits[:, 0, :])))
+            print("Ground Truth:", _vocab.translate(seq[:, 0]))
             start_t = time.time()
     return losses / len(train_iter)
 
+def greedy_decode(scores):
+    print(scores.shape)
+    _, seq = torch.max(scores, dim=1)
+    return seq
 
 def evaluate(model, val_iter):
     model.eval()
@@ -64,8 +75,8 @@ def evaluate(model, val_iter):
     size = len(val_iter) * BATCH_SIZE
     start_t = time.time()
     for idx, (img, seq) in (enumerate(val_iter)):
-        img = img.cuda()
-        seq = seq.cuda()
+        img = img.to(device)
+        seq = seq.to(device)
 
         seq_input = seq[:-1, :]
 
@@ -79,12 +90,12 @@ def evaluate(model, val_iter):
             start_t = time.time()
     return losses / len(val_iter)
 
-if __name__ == '__main__':
+def test_train_transformer():
     train_set = Img2SeqDataset(root, annotations_file="train_set_labels.csv", img_dir="prcd_data/train")
     train_iter = get_dataLoader(train_set, batch_size=BATCH_SIZE, mode='Transformer')
     val_set = Img2SeqDataset(root, annotations_file="val_set_labels.csv", img_dir="prcd_data/validate")
     val_iter = get_dataLoader(val_set, batch_size=BATCH_SIZE, mode='Transformer')
-    transformer = tfm.Img2SeqTransformer(patch_size=32, max_img_size=512, max_seq_len=200,
+    transformer = tfm.Img2SeqTransformer(feature_size=(16, 32), max_seq_len=200,
                                     num_encoder_layers=8, num_decoder_layers=8,
                                     d_model=512, nhead=8, vocab_size=train_set.vocab.size)
     if os.path.isfile("transformer_weights.pth"):
@@ -103,4 +114,16 @@ if __name__ == '__main__':
     with torch.no_grad():
         val_loss = evaluate(transformer, val_iter)
     print(f"Val loss: {val_loss:.3f}")
-    torch.save(transformer.state_dict(), "transformer_weights.pth")
+    torch.save(transformer.state_dict(), "model weights/transformer_weights.pth")
+
+def test_FeaturesExtractor():
+    train_set = Img2SeqDataset(root, annotations_file="train_set_labels.csv", img_dir="prcd_data/train")
+    train_iter = get_dataLoader(train_set, batch_size=BATCH_SIZE, mode='Transformer')
+    img, seq = next(iter(train_iter))
+    extractor = tfm.FeaturesExtractor()
+    with torch.no_grad():
+        y = extractor(img)
+    print(y.shape)
+
+if __name__ == '__main__':
+    test_FeaturesExtractor()

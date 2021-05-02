@@ -5,9 +5,9 @@ from torch import Tensor
 import cv2
 
 root = "D:/Tsinghua/2021.2/Artificial_Intelligence/Final Project/data"
+PAD = '<PAD>'
 SOS = '<SOS>'
 EOS = '<EOS>'
-PAD = '<PAD>'
 
 class vocab():
     def __init__(self):
@@ -26,6 +26,26 @@ class vocab():
         for c in inchi:
             res.append(self.vocab_to_int[c])
         return Tensor(res).long()
+
+    def translate(self, seq):
+        if len(seq.shape) == 2:
+            if seq.shape[1] > 1:
+                raise Exception("Too many input sequences")
+            else:
+                seq = seq.squeeze(1)
+        elif len(seq.shape) > 2:
+            raise Exception("Dimension is wrong")
+        inchi = "InChI=1S"
+        for token in seq:
+            if token == self.SOS_ID:
+                continue
+            elif token == self.EOS_ID:
+                break
+            elif token == self.PAD_ID:
+                break
+            else:
+                inchi += self.__call__(int(token))
+        return inchi
 
     def get_vocab(self):
         import pickle
@@ -55,7 +75,8 @@ def read_img(img_id, path):
     read image by cv2
     '''
     img_path = get_img_path(img_id, path)
-    img = cv2.imread(img_path, cv2.IMREAD_GRAYSCALE)
+    # img = cv2.imread(img_path, cv2.IMREAD_GRAYSCALE)
+    img = cv2.imread(img_path)
     return img
 
 def one_hot(seqs: Tensor, vocab_size: int):
@@ -64,3 +85,8 @@ def one_hot(seqs: Tensor, vocab_size: int):
     one_hot = torch.zeros(d1, d2, vocab_size)
     one_hot.scatter_(dim=2, index=seqs.long(), src=torch.ones(d1, d2, vocab_size))
     return one_hot
+
+if __name__ == '__main__':
+    vocab = vocab()
+    seq = Tensor([9, 7, 5, 34, 12, 1])
+    print(vocab.translate(seq))
