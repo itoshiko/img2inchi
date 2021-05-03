@@ -16,10 +16,19 @@ class vocab():
         self.SOS_ID = self.__call__(SOS)
         self.EOS_ID = self.__call__(EOS)
 
-    def encode(self, inchi):
+    def encode(self, inchi: str, no_mole_fml: bool=True):
+        '''
+        encode but remove the molecular formula
+        '''
         if not (inchi[:9] == "InChI=1S/"):
             raise Exception("Not Matching 'InChI=1S'")
         inchi = inchi[9:]
+        if no_mole_fml:
+            s = '/'
+            layers = inchi.split(s)
+            del layers[0]
+            inchi = s.join(layers)
+            inchi = s + inchi
         res = []
         res.append(self.vocab_to_int[SOS])
         matched = False

@@ -7,7 +7,7 @@ import time, os
 from torchvision import models
 from utils import vocab
 
-BATCH_SIZE = 16
+BATCH_SIZE = 32
 EPOCHS = 10
 PAD_ID = 0
 device = 'cuda:0' if torch.cuda.is_available() else 'cpu'
@@ -29,14 +29,15 @@ def test_dataLoader():
 def test_transformer():
     data = Img2SeqDataset(root, annotations_file="train_set_labels.csv", img_dir="prcd_data/train")
     dataLoader = get_dataLoader(data, batch_size=BATCH_SIZE, mode='Transformer')
-    model = tfm.Img2SeqTransformer(feature_size=(16, 32), max_seq_len=250,
+    model = tfm.Img2SeqTransformer(feature_size=(8, 16), max_seq_len=200,
                                     num_encoder_layers=6, num_decoder_layers=6,
-                                    d_model=512, nhead=4, vocab_size=data.vocab.size)
+                                    d_model=512, nhead=8, vocab_size=data.vocab.size)
     model = model.to(device)
     (img, seq) = next(iter(dataLoader))
     img = img.to(device)
     seq = seq.to(device)
     scores = model(img, seq)
+    print(seq[:, 0])
     print(scores)
 
 def train_epoch(model, train_iter, optimizer):
