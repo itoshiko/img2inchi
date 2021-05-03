@@ -7,7 +7,7 @@ import os
 from utils import root, join_path
 
 
-if_gen_vocab = False
+if_gen_vocab = True
 if_preprocessed = False
 if_split = False
 
@@ -19,9 +19,9 @@ THRESHOLD = 50
 VAL_SIZE = int(10e3)
 TRAIN_SIZE = int(40e3)
 CHUNK_SIZE = int(40e3)
+PAD = '<PAD>'
 SOS = '<SOS>'
 EOS = '<EOS>'
-PAD = '<PAD>'
 vocab_to_int = None
 int_to_vocab = None
 
@@ -46,19 +46,54 @@ def build_vocabulary(train_set):
             if_gen_vocab = True
     tokens = [PAD, SOS, EOS]
     vocabulary = set()
-    for s in tqdm(train_set['InChI'].values):
-        vocabulary.update(s)
+    is_lower_letter = lambda x: 'a' <= x and x <= 'z'
+    for inchi in tqdm(train_set['InChI'].values):
+        layers = inchi.split('/')
+        del layers[0]
+        build_vocab(vocabulary, layers[0], split_others=False)
+        del layers[0]
+        for string in layers:
+            if is_lower_letter(string[0]):
+                vocabulary.add('/' + string[0])
+                string = string[1:]
+            build_vocab(vocabulary, string, split_others=True)
+    for i in range(201):
+        vocabulary.add(str(i))
     vocabulary = list(vocabulary)
     vocabulary.sort()
     vocabulary = tokens + vocabulary
-    vocab_to_int = dict(zip(vocabulary, np.arange(len(vocabulary), dtype=np.uint8)))
-    int_to_vocab = dict(zip(np.arange(len(vocabulary), dtype=np.uint8), vocabulary))
+    vocab_to_int = dict(zip( vocabulary, np.arange(len(vocabulary), dtype=np.uint8) ))
+    int_to_vocab = dict(zip( np.arange(len(vocabulary), dtype=np.uint8), vocabulary ))
     with open(join_path(root, "vocab_to_int.pkl"), "wb") as f:
         pickle.dump(vocab_to_int, f)
     with open(join_path(root, "int_to_vocab.pkl"), "wb") as f:
         pickle.dump(int_to_vocab, f)
 
-def preprocess_train_set(train_set):
+def build_vocab(vocabulary: set, string: str, split_others: bool):
+    is_num = lambda x: '0' <= x and x <= '9'
+    is_capital_letter = lambda x: 'A' <= x and x <= 'Z'
+    word = ''
+    for s in string:
+        if is_num(s):
+            if word != '':
+                if split_others:
+                    vocabulary.update(word)
+                else:
+                    vocabulary.add(word)
+                word = ''
+        else:
+            if not split_others and is_capital_letter(s):
+                if word != '':
+                    vocabulary.add(word)
+                word = ''
+            word += s
+    if word != '':
+        if split_others:
+            vocabulary.update(word)
+        else:
+            vocabulary.add(word)
+
+def prc_train_set(train_set):
     if if_preprocessed:
         try:
             train_set = pd.read_csv('preprocessed_train_labels.csv',
@@ -169,11 +204,15 @@ def prc_imgs(data, name):
 if __name__ == "__main__":
     train_set = read_train_set()
     build_vocabulary(train_set)
+    print(vocab_to_int[PAD], int_to_vocab[0])
+    print(int_to_vocab)
+    '''
     if not if_split:
-        train_set = preprocess_train_set(train_set)
+        train_set = prc_train_set(train_set)
         print(train_set.head(3))
     val_set, train_set = train_val_split(train_set)
     print(train_set.info())
     print(val_set.info())
     prc_imgs(train_set, 'train')
     prc_imgs(val_set, 'validate')
+    '''

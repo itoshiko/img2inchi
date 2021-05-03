@@ -11,6 +11,7 @@ class Img2SeqDataset(Dataset):
         self.vocab = utils.vocab()
         annotations_file = utils.join_path(root, annotations_file)
         self.img_labels = pd.read_csv(annotations_file)
+        self.img_labels['InChI'] = self.vocab.encode_all(self.img_labels)
         self.img_dir = utils.join_path(root, img_dir)
         self.img_trans = ToTensor()
 
@@ -23,7 +24,7 @@ class Img2SeqDataset(Dataset):
         img = utils.read_img(img_id, self.img_dir)
         # img = self.img_trans(img).squeeze(0)
         img = self.img_trans(img)
-        label = self.vocab.tokenizer(label)
+        label = Tensor(label).long()
         return img, label
 
     def generate_batch_transformer(self, data_batch):

@@ -120,7 +120,7 @@ class FeaturesExtractor(nn.Module):
         :return: features. Shape: (output_w, output_h, batch_size, n_feature)
         '''
         ft = self.avgpool(self.extractor(img))    # (batch_size, n_feature, *output_size)
-        ft = ft.view.permute(2, 3, 0, 1)    # (output_w, output_h, batch_size, n_feature)
+        ft = ft.permute(2, 3, 0, 1)    # (output_w, output_h, batch_size, n_feature)
         features = ft.contiguous()
         del ft
         return self.fc(features)
@@ -129,7 +129,7 @@ class Img2SeqTransformer(nn.Module):
     def __init__(self, feature_size:(int, int), max_seq_len: int,
                 num_encoder_layers: int, num_decoder_layers: int,
                 d_model: int, nhead: int, vocab_size: int,
-                dim_feedforward:int = 512, dropout:float = 0.1):
+                dim_feedforward:int = 1024, dropout:float = 0.1):
         super(Img2SeqTransformer, self).__init__()
         self.d_model = d_model
         self.features_extractor = FeaturesExtractor(num_features=d_model, output_size=feature_size)
@@ -140,7 +140,7 @@ class Img2SeqTransformer(nn.Module):
                                                 dim_feedforward=dim_feedforward)
         self.transformer_decoder = TransformerDecoder(decoder_layer, num_layers=num_decoder_layers)
 
-        self.generator = nn.Sequential(Linear(d_model, vocab_size), Softmax(dim=2))
+        self.generator = Linear(d_model, vocab_size)
         self.seq_emb = TokenEmbedding(vocab_size, d_model)
         self.positional_encoding_seq = PositionalEncodingNd(d_pos=1, max_size=max_seq_len, d_model=d_model)
 
@@ -157,7 +157,9 @@ class Img2SeqTransformer(nn.Module):
         patch = patch.permute(1, 2, 0, 3).contiguous()   # (h0, w0, batch_size, d_model)
         '''
         features = self.features_extractor(img)
-        return self.transformer_encoder(src=img_emb, mask=None, src_key_padding_mask=None)
+        _, _, batch_size, n_feature = features.shape
+        features = features.view(-1, batch_size, n_feature)
+        return self.transformer_encoder(src=features, mask=None, src_key_padding_mask=None)
 
     def decode(self, seq: Tensor, memory: Tensor):
         seq_emb = self.positional_encoding_seq(self.seq_emb(seq))
