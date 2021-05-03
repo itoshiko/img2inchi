@@ -67,7 +67,7 @@ class EncoderCNN(nn.Module):
         out = out.view(batch_size, -1, dim_encoder) # (batch_size, num_pixels, dim_encoder)
         return out
 
-class PositionalEncodingNd():
+class PositionalEncodingNd(nn.Module):
     def __init__(self, d_pos: int, max_size: int, d_model: int):
         """
         Embedding the (absolute) positional encodings to some data
@@ -81,11 +81,12 @@ class PositionalEncodingNd():
         den = torch.exp(- torch.arange(0, d_model, 2 * d_pos) * math.log(10000) / d_model).unsqueeze(1)
         pos = torch.arange(0, max_size).unsqueeze(0)
         self.num = den.shape[0]
-        self.pos_embedding = torch.zeros((max_size, self.num))
-        self.pos_embedding[0::2, :] = torch.sin(den * pos)   # even indices
-        self.pos_embedding[1::2, :] = torch.cos(den * pos)   # odd  indices
+        pos_embedding = torch.zeros((max_size, self.num))
+        pos_embedding[0::2, :] = torch.sin(den * pos)   # even indices
+        pos_embedding[1::2, :] = torch.cos(den * pos)   # odd  indices
+        self.register_buffer('pos_embedding', pos_embedding)
 
-    def __call__(self, x: Tensor):
+    def forward(self, x: Tensor):
         """
         :param x: shape: (batch_size, d_model, (positional))
         :return: the data after embedding positional encodings

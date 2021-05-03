@@ -4,41 +4,41 @@ import pickle
 from tqdm import tqdm
 import cv2
 import os
+from utils import root, join_path
 
-root = os.getcwd()
 
-if_gen_vocab = False
-if_preprocessed = True
-if_split = True
+if_gen_vocab = True
+if_preprocessed = False
+if_split = False
 
 DEBUG = False
 MAX_INCHI_LEN = 200
-IMG_WIDTH = 1024
-IMG_HEIGHT = 512
+IMG_WIDTH = 512
+IMG_HEIGHT = 256
 THRESHOLD = 50
-VAL_SIZE = int(40e3)
-TRAIN_SIZE = int(120e3)
+VAL_SIZE = int(10e3)
+TRAIN_SIZE = int(40e3)
 CHUNK_SIZE = int(40e3)
+PAD = '<PAD>'
 SOS = '<SOS>'
 EOS = '<EOS>'
-PAD = '<PAD>'
 vocab_to_int = None
 int_to_vocab = None
 
 
 def read_train_set():
-    train_set = pd.read_csv('train_labels.csv', 
+    train_set = pd.read_csv(join_path(root, 'train_labels.csv'), 
                         dtype={ 'image_id': 'string', 'InChI': 'string' })
     return train_set
 
-def get_vocabulary(train_set):
+def build_vocabulary(train_set):
     global vocab_to_int, int_to_vocab, if_gen_vocab
     if not if_gen_vocab:
         try:
-            with open("vocab_to_int.pkl", "rb") as f:
+            with open(join_path(root, "vocab_to_int.pkl"), "rb") as f:
                 global vocab_to_int
                 vocab_to_int = pickle.load(f)
-            with open("int_to_vocab.pkl", "rb") as f:
+            with open(join_path(root, "int_to_vocab.pkl"), "rb") as f:
                 global int_to_vocab
                 int_to_vocab = pickle.load(f)
             return
@@ -46,33 +46,54 @@ def get_vocabulary(train_set):
             if_gen_vocab = True
     tokens = [PAD, SOS, EOS]
     vocabulary = set()
-    for s in tqdm(train_set['InChI'].values):
-        vocabulary.update(s)
+    is_lower_letter = lambda x: 'a' <= x and x <= 'z'
+    for inchi in tqdm(train_set['InChI'].values):
+        layers = inchi.split('/')
+        del layers[0]
+        build_vocab(vocabulary, layers[0], split_others=False)
+        del layers[0]
+        for string in layers:
+            if is_lower_letter(string[0]):
+                vocabulary.add('/' + string[0])
+                string = string[1:]
+            build_vocab(vocabulary, string, split_others=True)
+    for i in range(201):
+        vocabulary.add(str(i))
     vocabulary = list(vocabulary)
     vocabulary.sort()
     vocabulary = tokens + vocabulary
-    vocab_to_int = dict(zip(vocabulary, np.arange(len(vocabulary), dtype=np.uint8)))
-    int_to_vocab = dict(zip(np.arange(len(vocabulary), dtype=np.uint8), vocabulary))
-    with open("vocab_to_int.pkl", "wb") as f:
+    vocab_to_int = dict(zip( vocabulary, np.arange(len(vocabulary), dtype=np.uint8) ))
+    int_to_vocab = dict(zip( np.arange(len(vocabulary), dtype=np.uint8), vocabulary ))
+    with open(join_path(root, "vocab_to_int.pkl"), "wb") as f:
         pickle.dump(vocab_to_int, f)
-    with open("int_to_vocab.pkl", "wb") as f:
+    with open(join_path(root, "int_to_vocab.pkl"), "wb") as f:
         pickle.dump(int_to_vocab, f)
 
-def to_int(inchi):
-    if not (inchi[:8] == "InChI=1S"):
-        raise Exception("Not Matching 'InChI=1S'")
-    inchi = inchi[8:]
-    res = []
-    res.append(vocab_to_int[SOS])
-    for c in inchi:
-        res.append(vocab_to_int[c])
-    return np.array(res, dtype=np.uint8)
+def build_vocab(vocabulary: set, string: str, split_others: bool):
+    is_num = lambda x: '0' <= x and x <= '9'
+    is_capital_letter = lambda x: 'A' <= x and x <= 'Z'
+    word = ''
+    for s in string:
+        if is_num(s):
+            if word != '':
+                if split_others:
+                    vocabulary.update(word)
+                else:
+                    vocabulary.add(word)
+                word = ''
+        else:
+            if not split_others and is_capital_letter(s):
+                if word != '':
+                    vocabulary.add(word)
+                word = ''
+            word += s
+    if word != '':
+        if split_others:
+            vocabulary.update(word)
+        else:
+            vocabulary.add(word)
 
-def encoding_lables(data):
-    data['InChI'] = data['InChI'].apply(to_int)
-    return data
-
-def preprocess_train_set(train_set):
+def prc_train_set(train_set):
     if if_preprocessed:
         try:
             train_set = pd.read_csv('preprocessed_train_labels.csv',
@@ -106,18 +127,13 @@ def train_val_split(train_set):
 
 def create_dirs(path, *subdirs):
     if len(subdirs) > 0:
-        path = path_join(path, *subdirs)
+        path = join_path(path, *subdirs)
     if not os.path.exists(path):
         os.makedirs(path)
 
-def path_join(path, *subdirs):
-    for dir in subdirs:
-        path = os.path.join(path, dir)
-    return path
-
-def create_data_dirs():
+def create_data_dirs(name):
     l = ['0', '1', '2', '3', '4', '5', '6', '7', '8', '9', 'a', 'b', 'c', 'd', 'e', 'f']
-    data_root = path_join(root, "processed_data")
+    data_root = join_path(root, "prcd_data", name)
     create_dirs(data_root)
     for d1 in l:
         create_dirs(data_root, d1)
@@ -125,6 +141,7 @@ def create_data_dirs():
             create_dirs(data_root, d1, d2)
             for d3 in l:
                 create_dirs(data_root, d1, d2, d3)
+    return data_root
 
 def pad_resize(img):
     h, w = img.shape
@@ -157,9 +174,9 @@ def pad_resize(img):
 
     return img
 
-def process_img(img_id, source_folder="train", target_folder="processed_data"):
-    source_file_path =  path_join(root, source_folder, img_id[0], img_id[1], img_id[2], f'{img_id}.png')
-    target_file_path =  path_join(root, target_folder, img_id[0], img_id[1], img_id[2], f'{img_id}.png')
+def prc_img(img_id, source_folder="train", target_folder="prcd_data"):
+    source_file_path =  join_path(root, source_folder, img_id[0], img_id[1], img_id[2], f'{img_id}.png')
+    target_file_path =  join_path(root, target_folder, img_id[0], img_id[1], img_id[2], f'{img_id}.png')
     img = 255 - cv2.imread(source_file_path, cv2.IMREAD_GRAYSCALE)
     
     # rotate counter clockwise to get horizontal images
@@ -177,19 +194,25 @@ def process_img(img_id, source_folder="train", target_folder="processed_data"):
         cv2.waitKey(0) 
         cv2.destroyAllWindows()
 
+def prc_imgs(data, name):
+    data_root = create_data_dirs(name)
+    l = 10 if DEBUG else len(data) 
+    for i in tqdm(range(l)):
+        prc_img(data.loc[i, 'image_id'], target_folder=data_root)
+
+
 if __name__ == "__main__":
     train_set = read_train_set()
-    get_vocabulary(train_set)
-    print(vocab_to_int)
+    build_vocabulary(train_set)
+    print(vocab_to_int[PAD], int_to_vocab[0])
+    print(int_to_vocab)
+    '''
     if not if_split:
-        train_set = preprocess_train_set(train_set)
+        train_set = prc_train_set(train_set)
         print(train_set.head(3))
     val_set, train_set = train_val_split(train_set)
-    encoding_lables(val_set)
-    encoding_lables(train_set)
     print(train_set.info())
     print(val_set.info())
-    create_data_dirs()
-    l = 10 if DEBUG else len(train_set) 
-    for i in tqdm(range(l)):
-        process_img(train_set.loc[i, 'image_id'])
+    prc_imgs(train_set, 'train')
+    prc_imgs(val_set, 'validate')
+    '''
