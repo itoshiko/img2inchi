@@ -1,12 +1,65 @@
-import os
+import pickle
 import numpy as np
-import torch
-import cv2
+from .utils import join
 
-root = "D:/Tsinghua/2021.2/Artificial_Intelligence/Final Project/data"
+
+data_root = "D:/Tsinghua/2021.2/Artificial_Intelligence/Final Project/data"
 PAD = '<PAD>'
 SOS = '<SOS>'
 EOS = '<EOS>'
+
+def build_vocabulary(train_set):
+    import pickle
+    from tqdm import tqdm
+    tokens = [PAD, SOS, EOS]
+    vocabulary = set()
+    is_lower_letter = lambda x: 'a' <= x and x <= 'z'
+    for inchi in tqdm(train_set['InChI'].values):
+        layers = inchi.split('/')
+        del layers[0]
+        build_vocab(vocabulary, layers[0], split_others=False)
+        del layers[0]
+        for string in layers:
+            if is_lower_letter(string[0]):
+                vocabulary.add('/' + string[0])
+                string = string[1:]
+            build_vocab(vocabulary, string, split_others=True)
+    for i in range(201):
+        vocabulary.add(str(i))
+    vocabulary = list(vocabulary)
+    vocabulary.sort()
+    vocabulary = tokens + vocabulary
+    vocab_to_int = dict(zip( vocabulary, np.arange(len(vocabulary), dtype=np.uint8) ))
+    int_to_vocab = dict(zip( np.arange(len(vocabulary), dtype=np.uint8), vocabulary ))
+    with open(join(data_root, "vocab_to_int.pkl"), "wb") as f:
+        pickle.dump(vocab_to_int, f)
+    with open(join(data_root, "int_to_vocab.pkl"), "wb") as f:
+        pickle.dump(int_to_vocab, f)
+
+def build_vocab(vocabulary: set, string: str, split_others: bool):
+    is_num = lambda x: '0' <= x and x <= '9'
+    is_capital_letter = lambda x: 'A' <= x and x <= 'Z'
+    word = ''
+    for s in string:
+        if is_num(s):
+            if word != '':
+                if split_others:
+                    vocabulary.update(word)
+                else:
+                    vocabulary.add(word)
+                word = ''
+        else:
+            if not split_others and is_capital_letter(s):
+                if word != '':
+                    vocabulary.add(word)
+                word = ''
+            word += s
+    if word != '':
+        if split_others:
+            vocabulary.update(word)
+        else:
+            vocabulary.add(word)
+
 
 class vocab():
     def __init__(self):
@@ -78,9 +131,9 @@ class vocab():
 
     def get_vocab(self):
         import pickle
-        with open(join_path(root, "vocab_to_int.pkl"), "rb") as f:
+        with open(join(data_root, "vocab_to_int.pkl"), "rb") as f:
             vocab_to_int = pickle.load(f)
-        with open(join_path(root, "int_to_vocab.pkl"), "rb") as f:
+        with open(join(data_root, "int_to_vocab.pkl"), "rb") as f:
             int_to_vocab = pickle.load(f)
         return vocab_to_int, int_to_vocab
     
@@ -91,29 +144,6 @@ class vocab():
             return self.vocab_to_int[x]
         return None
 
-def join_path(path, *subdirs):
-    for dir in subdirs:
-        path = os.path.join(path, dir)
-    return path
-
-def get_img_path(img_id, path):
-    return join_path(path, img_id[0], img_id[1], img_id[2], f'{img_id}.png')
-
-def read_img(img_id, root):
-    '''
-    read image by cv2
-    '''
-    img_path = get_img_path(img_id, root)
-    # img = cv2.imread(img_path, cv2.IMREAD_GRAYSCALE)
-    img = cv2.imread(img_path)
-    return img
-
-def one_hot(seqs, vocab_size):
-    d1, d2 = seqs.shape
-    seqs = seqs.unsqueeze(-1)
-    one_hot = torch.zeros(d1, d2, vocab_size)
-    one_hot.scatter_(dim=2, index=seqs.long(), src=torch.ones(d1, d2, vocab_size))
-    return one_hot
 
 if __name__ == '__main__':
     vocab = vocab()
