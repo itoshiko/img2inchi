@@ -99,11 +99,11 @@ def join_path(path, *subdirs):
 def get_img_path(img_id, path):
     return join_path(path, img_id[0], img_id[1], img_id[2], f'{img_id}.png')
 
-def read_img(img_id, path):
+def read_img(img_id, root):
     '''
     read image by cv2
     '''
-    img_path = get_img_path(img_id, path)
+    img_path = get_img_path(img_id, root)
     # img = cv2.imread(img_path, cv2.IMREAD_GRAYSCALE)
     img = cv2.imread(img_path)
     return img

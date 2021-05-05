@@ -9,7 +9,7 @@ from torch.nn import Dropout, LayerNorm, MultiheadAttention, Linear, Softmax
 from typing import Optional
 from torchvision import models
 PAD_ID = 0
-pretrained_ResNet101_path = "model weights/ResNet101.pth"
+pretrained = "model weights"
 
 
 class PositionalEncodingNd(nn.Module):
@@ -102,37 +102,48 @@ class TokenEmbedding(nn.Module):
         return self.embedding(tokens.long()) * math.sqrt(self.emb_size)
 
 class FeaturesExtractor(nn.Module):
-    def __init__(self, num_features=512, output_size=(16, 32)):
+    def __init__(self, num_features=512, output_size=(16, 32), extractor_name='resnet101', tr_extractor=False):
         super(FeaturesExtractor, self).__init__()
-        resnet101 = models.resnet101(pretrained=False)
-        resnet101.load_state_dict(torch.load(pretrained_ResNet101_path))
-        modules = list(resnet101.children())[:-2]   # delete the last avgpool layer and fc layer.
-        del resnet101
+        if extractor_name == 'resnet101':
+            net = models.resnet101(pretrained=False)
+            net.load_state_dict(torch.load(pretrained + '/ResNet101.pth'))
+            dft_ft = 2048
+        elif extractor_name == 'resnet34':
+            net = models.resnet34(pretrained=False)
+            net.load_state_dict(torch.load(pretrained + '/ResNet34.pth'))
+            dft_ft = 512
+        modules = list(net.children())[:-2]   # delete the last avgpool layer and fc layer.
+        del net
         self.extractor = nn.Sequential(*modules)
-        for param in self.extractor.parameters():
-            param.requires_grad = False
-        self.avgpool = nn.AdaptiveAvgPool2d(output_size=output_size)
-        self.fc = Linear(2048, num_features)
+        if not tr_extractor:
+            for param in self.extractor.parameters():
+                param.requires_grad = False
+        self.avgpool = nn.AdaptiveAvgPool2d(output_size=output_size) if output_size else None
+        self.fc = Linear(dft_ft, num_features) if num_features != dft_ft else None
 
     def forward(self, img):
         '''
         :param img: (batch_size, n_channel, H, W)
         :return: features. Shape: (output_w, output_h, batch_size, n_feature)
         '''
-        ft = self.avgpool(self.extractor(img))    # (batch_size, n_feature, *output_size)
-        ft = ft.permute(2, 3, 0, 1)    # (output_w, output_h, batch_size, n_feature)
+        if self.avgpool:
+            ft = self.avgpool(self.extractor(img))      # (batch_size, n_feature, *output_size)
+        else:
+            ft = self.extractor(img)                    # (batch_size, n_feature, *default_size)
+        ft = ft.permute(2, 3, 0, 1)                     # (output_w, output_h, batch_size, n_feature)
         features = ft.contiguous()
         del ft
-        return self.fc(features)
+        return self.fc(features) if self.fc else features
 
 class Img2SeqTransformer(nn.Module):
-    def __init__(self, feature_size:(int, int), max_seq_len: int,
-                num_encoder_layers: int, num_decoder_layers: int,
+    def __init__(self, feature_size:(int, int), extractor_name: str, max_seq_len: int,
+                tr_extractor: bool, num_encoder_layers: int, num_decoder_layers: int,
                 d_model: int, nhead: int, vocab_size: int,
                 dim_feedforward:int = 1024, dropout:float = 0.1):
         super(Img2SeqTransformer, self).__init__()
         self.d_model = d_model
-        self.features_extractor = FeaturesExtractor(num_features=d_model, output_size=feature_size)
+        self.features_extractor = FeaturesExtractor(num_features=d_model, output_size=feature_size, 
+                                                extractor_name=extractor_name, tr_extractor=tr_extractor)
         encoder_layer = TransformerEncoderLayer(d_model=d_model, nhead=nhead,
                                                 dim_feedforward=dim_feedforward)
         self.transformer_encoder = TransformerEncoder(encoder_layer, num_layers=num_encoder_layers)

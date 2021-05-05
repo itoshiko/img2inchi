@@ -20,12 +20,13 @@ class Img2SeqDataset(Dataset):
 
     def __getitem__(self, i):
         img_id = self.img_labels.iloc[i, 0]
-        label = self.img_labels.iloc[i, 1]
-        img = utils.read_img(img_id, self.img_dir)
+        seq = self.img_labels.iloc[i, 1]
+        img0 = utils.read_img(img_id, self.img_dir)
         # img = self.img_trans(img).squeeze(0)
-        img = self.img_trans(img)
-        label = Tensor(label).long()
-        return img, label
+        img = self.img_trans(img0)
+        del img0
+        seq = Tensor(seq).long()
+        return img, seq
 
     def generate_batch_transformer(self, data_batch):
         img_batch, seq_batch = list(zip(*data_batch))
