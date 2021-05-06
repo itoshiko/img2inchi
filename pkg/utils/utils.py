@@ -1,7 +1,13 @@
 import os
 import numpy as np
 import torch
-import cv2
+
+try:
+    import cv2
+    has_cv2 = True
+except:
+    from PIL import Image
+    has_cv2 = False
 
 
 def join(path, *subdirs):
@@ -24,7 +30,11 @@ def read_img(img_id, root):
     '''
     img_path = get_img_path(img_id, root)
     # img = cv2.imread(img_path, cv2.IMREAD_GRAYSCALE)
-    img = cv2.imread(img_path)
+    if has_cv2:
+        img = cv2.imread(img_path)
+    else:
+        img = Image.open(img_path)
+        img = np.array(img.convert('RGB'))
     return img
 
 def one_hot(seqs, vocab_size):
