@@ -8,6 +8,7 @@ from torch.nn import (TransformerEncoder, TransformerDecoder,
 from torch.nn import Dropout, LayerNorm, MultiheadAttention, Linear, Softmax
 from typing import Optional
 from torchvision import models
+
 PAD_ID = 0
 pretrained = "model weights"
 
@@ -175,7 +176,7 @@ class Img2SeqTransformer(nn.Module):
     def decode(self, seq: Tensor, memory: Tensor):
         seq_emb = self.positional_encoding_seq(self.seq_emb(seq))
         tgt_mask = self.generate_square_subsequent_mask(seq.shape[0])
-        tgt_padding_mask = (seq == PAD_ID).transpose(0, 1) if self.training else None
+        tgt_padding_mask = (seq == PAD_ID).transpose(0, 1)
         return self.transformer_decoder(tgt=seq_emb, memory=memory, tgt_mask=tgt_mask, memory_mask=None,
                                         tgt_key_padding_mask=tgt_padding_mask, memory_key_padding_mask=None)
 
