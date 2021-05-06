@@ -8,12 +8,12 @@ from pkg.utils.utils import read_img, join, one_hot
 from pkg.utils.vocab import vocab
 
 class Img2SeqDataset(Dataset):
-    def __init__(self, root, annotations_file, img_dir):
-        self.vocab = vocab()
-        annotations_file = join(root, annotations_file)
+    def __init__(self, root, data_dir, img_dir, annotations_file):
+        self.vocab = vocab(root)
+        annotations_file = join(root, data_dir, annotations_file)
         self.img_labels = pd.read_csv(annotations_file)
         self.img_labels['InChI'] = self.vocab.encode_all(self.img_labels)
-        self.img_dir = join(root, img_dir)
+        self.img_dir = join(root, data_dir, img_dir)
         self.img_trans = ToTensor()
 
     def __len__(self):

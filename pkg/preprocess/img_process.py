@@ -2,8 +2,6 @@ import numpy as np
 import cv2
 from ..utils.utils import join
 
-data_root = "D:/Tsinghua/2021.2/Artificial_Intelligence/Final Project/data"
-
 IMG_WIDTH = 512
 IMG_HEIGHT = 256
 THRESHOLD = 50
@@ -21,9 +19,9 @@ def pad_resize(img):
     img = cv2.resize(img,(IMG_WIDTH, IMG_HEIGHT), interpolation=cv2.INTER_NEAREST)
     return img
 
-def prc_img(img_id, source_folder="train", target_folder="prcd_data"):
-    source_file_path = join(data_root, source_folder, img_id[0], img_id[1], img_id[2], f'{img_id}.png')
-    target_file_path = join(data_root, target_folder, img_id[0], img_id[1], img_id[2], f'{img_id}.png')
+def prc_img(img_id, source_root="train", target_root="prcd_data"):
+    source_file_path = join(source_root, img_id[0], img_id[1], img_id[2], f'{img_id}.png')
+    target_file_path = join(target_root, img_id[0], img_id[1], img_id[2], f'{img_id}.png')
     img = 255 - cv2.imread(source_file_path, cv2.IMREAD_GRAYSCALE)
     
     # rotate counter clockwise to get horizontal images

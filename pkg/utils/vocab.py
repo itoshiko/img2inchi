@@ -3,18 +3,18 @@ import numpy as np
 from .utils import join
 
 
-data_root = "D:/Tsinghua/2021.2/Artificial_Intelligence/Final Project/data"
+vocab_dir = 'vocabulary'
 PAD = '<PAD>'
 SOS = '<SOS>'
 EOS = '<EOS>'
 
-def build_vocabulary(train_set):
+def build_vocabulary(root, inchi_list):
     import pickle
     from tqdm import tqdm
     tokens = [PAD, SOS, EOS]
     vocabulary = set()
     is_lower_letter = lambda x: 'a' <= x and x <= 'z'
-    for inchi in tqdm(train_set['InChI'].values):
+    for inchi in tqdm(inchi_list):
         layers = inchi.split('/')
         del layers[0]
         build_vocab(vocabulary, layers[0], split_others=False)
@@ -31,9 +31,9 @@ def build_vocabulary(train_set):
     vocabulary = tokens + vocabulary
     vocab_to_int = dict(zip( vocabulary, np.arange(len(vocabulary), dtype=np.uint8) ))
     int_to_vocab = dict(zip( np.arange(len(vocabulary), dtype=np.uint8), vocabulary ))
-    with open(join(data_root, "vocab_to_int.pkl"), "wb") as f:
+    with open(join(root, vocab_dir, "vocab_to_int.pkl"), "wb") as f:
         pickle.dump(vocab_to_int, f)
-    with open(join(data_root, "int_to_vocab.pkl"), "wb") as f:
+    with open(join(root, vocab_dir, "int_to_vocab.pkl"), "wb") as f:
         pickle.dump(int_to_vocab, f)
 
 def build_vocab(vocabulary: set, string: str, split_others: bool):
@@ -62,7 +62,11 @@ def build_vocab(vocabulary: set, string: str, split_others: bool):
 
 
 class vocab():
-    def __init__(self):
+    def __init__(self, root):
+        '''
+        :param root: project root. we'll find the vocab files in root/vocabulary
+        '''
+        self.root = root
         self.vocab_to_int, self.int_to_vocab = self.get_vocab()
         self.size = len(self.vocab_to_int)
         self.PAD_ID = self.__call__(PAD)
@@ -130,10 +134,11 @@ class vocab():
         return inchi
 
     def get_vocab(self):
+        root = self.root
         import pickle
-        with open(join(data_root, "vocab_to_int.pkl"), "rb") as f:
+        with open(join(root, vocab_dir, "vocab_to_int.pkl"), "rb") as f:
             vocab_to_int = pickle.load(f)
-        with open(join(data_root, "int_to_vocab.pkl"), "rb") as f:
+        with open(join(root, vocab_dir, "int_to_vocab.pkl"), "rb") as f:
             int_to_vocab = pickle.load(f)
         return vocab_to_int, int_to_vocab
     
@@ -146,7 +151,8 @@ class vocab():
 
 
 if __name__ == '__main__':
-    vocab = vocab()
+    root = "D:/Tsinghua/2021.2/Artificial_Intelligence/Final Project/img2inchi"
+    vocab = vocab(root)
     from torch import Tensor
     seq = Tensor([1, 217, 134, 221, 139, 218, 223, 138, 224, 126, 226, 9, 15, 
                 7, 115, 3, 93, 7, 136, 7, 134, 3, 140, 4, 133, 7, 16, 7, 204, 
