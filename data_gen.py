@@ -4,15 +4,16 @@ from torch import Tensor
 from torch.nn.utils.rnn import pad_sequence
 from torch.utils.data import DataLoader, Dataset
 from torchvision.transforms import ToTensor
-import utils
+from pkg.utils.utils import read_img, join, one_hot
+from pkg.utils.vocab import vocab
 
 class Img2SeqDataset(Dataset):
-    def __init__(self, root, annotations_file, img_dir):
-        self.vocab = utils.vocab()
-        annotations_file = utils.join_path(root, annotations_file)
+    def __init__(self, root, data_dir, img_dir, annotations_file):
+        self.vocab = vocab(root)
+        annotations_file = join(root, data_dir, annotations_file)
         self.img_labels = pd.read_csv(annotations_file)
         self.img_labels['InChI'] = self.vocab.encode_all(self.img_labels)
-        self.img_dir = utils.join_path(root, img_dir)
+        self.img_dir = join(root, data_dir, img_dir)
         self.img_trans = ToTensor()
 
     def __len__(self):
@@ -21,7 +22,7 @@ class Img2SeqDataset(Dataset):
     def __getitem__(self, i):
         img_id = self.img_labels.iloc[i, 0]
         seq = self.img_labels.iloc[i, 1]
-        img0 = utils.read_img(img_id, self.img_dir)
+        img0 = read_img(img_id, self.img_dir)
         # img = self.img_trans(img).squeeze(0)
         img = self.img_trans(img0)
         del img0
@@ -42,7 +43,7 @@ class Img2SeqDataset(Dataset):
         seq_lenth = [len(seq) for seq in seq_batch]
         seq_batch = pad_sequence(seq_batch, padding_value=self.vocab.PAD_ID)
         seq_batch = seq_batch.transpose(0, 1)
-        encoded_seq_batch = utils.one_hot(seq_batch, self.vocab.size)
+        encoded_seq_batch = one_hot(seq_batch, self.vocab.size)
         return torch.stack(img_batch), encoded_seq_batch, seq_lenth
 
 

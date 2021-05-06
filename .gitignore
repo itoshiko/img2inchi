@@ -130,4 +130,8 @@ dmypy.json
 
 # model
 *.pth
+
+# data
+*.pkl
 *.csv
+data/*
