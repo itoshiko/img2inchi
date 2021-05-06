@@ -11,10 +11,14 @@ EPOCHS = 5
 PAD_ID = 0
 SOS_ID = 1
 EOS_ID = 2
-data_root = "D:/Tsinghua/2021.2/Artificial_Intelligence/Final Project/data"
+
+root = "D:/Tsinghua/2021.2/Artificial_Intelligence/Final Project/img2inchi"
+data_dir = 'data/prcd_data_small'
+
 device = 'cuda:0' if torch.cuda.is_available() else 'cpu'
+
 pretrained_ResNet101_path = "model weights/ResNet101.pth"
-_vocab = vocab()
+_vocab = vocab(root)
 
 loss_fn = torch.nn.CrossEntropyLoss(ignore_index=PAD_ID)
 transformer = tfm.Img2SeqTransformer(feature_size=None, extractor_name='resnet34', max_seq_len=200,
@@ -27,7 +31,7 @@ if os.path.isfile("model weights/transformer_weights.pth"):
 
 
 def test_dataLoader():
-    data = Img2SeqDataset(data_root, annotations_file="train_set_labels.csv", img_dir="prcd_data/train")
+    data = Img2SeqDataset(root=root, data_dir=data_dir, img_dir="train", annotations_file="train_set_labels.csv")
     dataLoader = get_dataLoader(data, batch_size=4, mode='Img2Seq')
     idx, (img, seq, seq_l) = next(enumerate(dataLoader))
     print(img.shape)
@@ -36,7 +40,7 @@ def test_dataLoader():
     print(idx)
 
 def test_transformer():
-    data = Img2SeqDataset(data_root, annotations_file="train_set_labels.csv", img_dir="prcd_data/train")
+    data = Img2SeqDataset(root=root, data_dir=data_dir, img_dir="train", annotations_file="train_set_labels.csv")
     dataLoader = get_dataLoader(data, batch_size=BATCH_SIZE, mode='Transformer')
     model = tfm.Img2SeqTransformer(feature_size=(8, 16), extractor_name='resnet34', max_seq_len=200,
                                     tr_extractor=False, num_encoder_layers=6, num_decoder_layers=6,
@@ -93,9 +97,9 @@ def evaluate(model, val_iter):
     return losses / len(val_iter)
 
 def test_train_transformer():
-    train_set = Img2SeqDataset(data_root, annotations_file="train_set_labels.csv", img_dir="prcd_data/train")
+    train_set = Img2SeqDataset(root=root, data_dir=data_dir, img_dir="train", annotations_file="train_set_labels.csv")
     train_iter = get_dataLoader(train_set, batch_size=BATCH_SIZE, mode='Transformer')
-    val_set = Img2SeqDataset(data_root, annotations_file="val_set_labels.csv", img_dir="prcd_data/validate")
+    val_set = Img2SeqDataset(root=root, data_dir=data_dir, img_dir="validate", annotations_file="val_set_labels.csv")
     val_iter = get_dataLoader(val_set, batch_size=BATCH_SIZE, mode='Transformer')
     global transformer
     transformer = transformer.to(device)
@@ -118,7 +122,7 @@ def test_train_transformer():
         torch.save(transformer.state_dict(), "model weights/transformer_weights.pth")
 
 def test_FeaturesExtractor():
-    train_set = Img2SeqDataset(data_root, annotations_file="train_set_labels.csv", img_dir="prcd_data/train")
+    train_set = Img2SeqDataset(root=root, data_dir=data_dir, img_dir="train", annotations_file="train_set_labels.csv")
     train_iter = get_dataLoader(train_set, batch_size=BATCH_SIZE, mode='Transformer')
     img, seq = next(iter(train_iter))
     extractor = tfm.FeaturesExtractor()
@@ -128,7 +132,7 @@ def test_FeaturesExtractor():
     print(seq[:, 0])
 
 def test_model():
-    val_set = Img2SeqDataset(data_root, annotations_file="val_set_labels.csv", img_dir="prcd_data/validate")
+    val_set = Img2SeqDataset(root=root, data_dir=data_dir, img_dir="validate", annotations_file="val_set_labels.csv")
     '''
     if os.path.isfile("model weights/transformer_weights.pth"):
         print("Load the weights")
