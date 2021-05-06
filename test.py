@@ -19,6 +19,7 @@ device = 'cuda:0' if torch.cuda.is_available() else 'cpu'
 device_ids = range(torch.cuda.device_count())
 multi_gpu = True if len(device_ids) > 1 else False
 
+pretrained_ResNet101_path = "model weights/ResNet101.pth"
 _vocab = vocab(root)
 
 loss_fn = torch.nn.CrossEntropyLoss(ignore_index=PAD_ID)
@@ -51,7 +52,7 @@ def test_transformer():
     img = img.to(device)
     seq = seq.to(device)
     scores = model(img, seq)
-    print(seq[:, 0])
+    print(seq[0, :])
     print(scores)
 
 def train_epoch(model, train_iter, optimizer):
@@ -90,9 +91,9 @@ def evaluate(model, val_iter):
     for idx, (img, seq) in (enumerate(val_iter)):
         img = img.to(device)
         seq = seq.to(device)
-        seq_input = seq[:-1, :]
+        seq_input = seq[:, :-1]
         logits = model(img, seq_input)
-        seq_out = seq[1:,:]
+        seq_out = seq[:,:1]
         loss = loss_fn(logits.reshape(-1, logits.shape[-1]), seq_out.reshape(-1))
         losses += loss.item()
     return losses / len(val_iter)
@@ -131,7 +132,7 @@ def test_FeaturesExtractor():
     extractor = tfm.FeaturesExtractor()
     with torch.no_grad():
         y = extractor(img)
-    print(seq[:, 0])
+    print(seq[0, :])
 
 def test_model():
     val_set = Img2SeqDataset(root=root, data_dir=data_dir, img_dir="validate", annotations_file="val_set_labels.csv")
@@ -168,10 +169,10 @@ def predict(img, model, max_len=200):
     for i in range(max_len - 1):
         out = model.decode(seq, memory)
         out = out.transpose(0, 1)
-        scores = model.generator(out[:, -1])
-        _, next_word = torch.max(scores, dim = 1)
+        scores = model.generator(out[:, -1, :])
+        _, next_word = torch.max(scores, dim=1)
         next_word = next_word.item()
-        seq = torch.cat([seq, torch.ones(1, 1).type_as(img.data).fill_(next_word)], dim=0)
+        seq = torch.cat([seq, torch.ones(1, 1).type_as(img.data).fill_(next_word)], dim=1)
         if next_word == EOS_ID:
             break
     return _vocab.decode(seq)
