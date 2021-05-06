@@ -6,16 +6,18 @@ import time, os
 from torchvision import models
 from pkg.utils.vocab import vocab
 
-BATCH_SIZE = 16
+BATCH_SIZE = 90
 EPOCHS = 5
 PAD_ID = 0
 SOS_ID = 1
 EOS_ID = 2
 
-root = "D:/Tsinghua/2021.2/Artificial_Intelligence/Final Project/img2inchi"
+root = os.getcwd()
 data_dir = 'data/prcd_data_small'
 
 device = 'cuda:0' if torch.cuda.is_available() else 'cpu'
+device_ids = range(torch.cuda.device_count())
+multi_gpu = True if len(device_ids) > 1 else False
 
 pretrained_ResNet101_path = "model weights/ResNet101.pth"
 _vocab = vocab(root)
@@ -50,7 +52,7 @@ def test_transformer():
     img = img.to(device)
     seq = seq.to(device)
     scores = model(img, seq)
-    print(seq[:, 0])
+    print(seq[0, :])
     print(scores)
 
 def train_epoch(model, train_iter, optimizer):
@@ -62,10 +64,10 @@ def train_epoch(model, train_iter, optimizer):
     for idx, (img, seq) in enumerate(train_iter):
         img = img.to(device)
         seq = seq.to(device)
-        seq_input = seq[:-1, :]
-        logits = model(img, seq_input)  # (lenth, batch_size, vocab_size)
+        seq_input = seq[:, :-1]
+        logits = model(img, seq_input)  # (batch_size, lenth, vocab_size)
         optimizer.zero_grad()
-        seq_out = seq[1:, :]
+        seq_out = seq[:, 1:]
         loss = loss_fn(logits.reshape(-1, logits.shape[-1]), seq_out.reshape(-1))
         loss.backward()
 
@@ -73,9 +75,9 @@ def train_epoch(model, train_iter, optimizer):
         losses += loss.item()
         if idx % threshold == 0:
             end_t = time.time()
-            print(f"loss: {loss:>7f}  [{idx * BATCH_SIZE:>5d}/{size:>5d}]; time: {(end_t - start_t):.3f}")
-            print("  Our output:", _vocab.decode(greedy_decode(logits[:, 0, :])))
-            print("Ground Truth:", _vocab.decode(seq[:, 0]))
+            print(f"loss: {loss.item():>7f}  [{idx * BATCH_SIZE:>5d}/{size:>5d}]; time: {(end_t - start_t):.3f}")
+            print("  Our output:", _vocab.decode(greedy_decode(logits[0, :, :])))
+            print("Ground Truth:", _vocab.decode(seq[0, :]))
             start_t = time.time()
     return losses / len(train_iter)
 
@@ -89,9 +91,9 @@ def evaluate(model, val_iter):
     for idx, (img, seq) in (enumerate(val_iter)):
         img = img.to(device)
         seq = seq.to(device)
-        seq_input = seq[:-1, :]
+        seq_input = seq[:, :-1]
         logits = model(img, seq_input)
-        seq_out = seq[1:,:]
+        seq_out = seq[:,:1]
         loss = loss_fn(logits.reshape(-1, logits.shape[-1]), seq_out.reshape(-1))
         losses += loss.item()
     return losses / len(val_iter)
@@ -102,6 +104,8 @@ def test_train_transformer():
     val_set = Img2SeqDataset(root=root, data_dir=data_dir, img_dir="validate", annotations_file="val_set_labels.csv")
     val_iter = get_dataLoader(val_set, batch_size=BATCH_SIZE, mode='Transformer')
     global transformer
+    if multi_gpu:
+        transformer = nn.DataParallel(transformer, device_ids = device_ids)
     transformer = transformer.to(device)
     optimizer = torch.optim.Adam(
         transformer.parameters(), lr=0.0001, betas=(0.9, 0.98), eps=1e-9
@@ -126,10 +130,9 @@ def test_FeaturesExtractor():
     train_iter = get_dataLoader(train_set, batch_size=BATCH_SIZE, mode='Transformer')
     img, seq = next(iter(train_iter))
     extractor = tfm.FeaturesExtractor()
-    import cv2
     with torch.no_grad():
         y = extractor(img)
-    print(seq[:, 0])
+    print(seq[0, :])
 
 def test_model():
     val_set = Img2SeqDataset(root=root, data_dir=data_dir, img_dir="validate", annotations_file="val_set_labels.csv")
@@ -166,10 +169,10 @@ def predict(img, model, max_len=200):
     for i in range(max_len - 1):
         out = model.decode(seq, memory)
         out = out.transpose(0, 1)
-        scores = model.generator(out[:, -1])
-        _, next_word = torch.max(scores, dim = 1)
+        scores = model.generator(out[:, -1, :])
+        _, next_word = torch.max(scores, dim=1)
         next_word = next_word.item()
-        seq = torch.cat([seq, torch.ones(1, 1).type_as(img.data).fill_(next_word)], dim=0)
+        seq = torch.cat([seq, torch.ones(1, 1).type_as(img.data).fill_(next_word)], dim=1)
         if next_word == EOS_ID:
             break
     return _vocab.decode(seq)
@@ -189,4 +192,4 @@ def num_param():
 
 
 if __name__ == '__main__':
-    test_model()
+    test_train_transformer()

@@ -31,7 +31,7 @@ class Img2SeqDataset(Dataset):
 
     def generate_batch_transformer(self, data_batch):
         img_batch, seq_batch = list(zip(*data_batch))
-        seq_batch = pad_sequence(seq_batch, padding_value=self.vocab.PAD_ID)
+        seq_batch = pad_sequence(seq_batch, padding_value=self.vocab.PAD_ID).transpose(0, 1).contiguous()
         return torch.stack(img_batch), seq_batch
 
     def generate_batch_Img2Seq(self, data_batch):
