@@ -9,8 +9,8 @@ import torch.nn as nn
 import torchvision.models as models
 
 from base import BaseModel
-from NetModel_Img2Seq import Img2Seq
-from NetModel_Transformer import Img2SeqTransformer
+from model.Img2Seq import Img2Seq
+from model.Transformer import Img2SeqTransformer
 from data_gen import Img2SeqDataset
 from data_gen import get_dataLoader
 

@@ -2,9 +2,8 @@ import os
 import time
 
 import torch
-import torch.nn as nn
 
-from utils.general import get_logger, init_dir
+from pkg.utils.general import get_logger, init_dir
 
 
 class BaseModel(object):
