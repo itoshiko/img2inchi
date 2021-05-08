@@ -70,14 +70,14 @@ class BaseModel(object):
         self.criterion = self.getCriterion(criterion_method)
 
     # ! MUST OVERWRITE
-    def getModel(self, model_name="Img2Seq"):
+    def getModel(self):
         """return your Model
         Args:
             model_name: String, from "model.json"
         Returns:
             your model that inherits from torch.nn
         """
-        raise NotImplementedError("return your model ({}) that inherits from torch.nn".format(model_name))
+        raise NotImplementedError("return your model ({}) that inherits from torch.nn")
 
     def getOptimizer(self, lr_method="adam", lr=1e-3):
         if lr_method == 'adam':
@@ -167,21 +167,20 @@ class BaseModel(object):
 
         return best_score
 
-    def evaluate(self, config, test_set):
+    def evaluate(self, test_set):
         """Evaluates model on test set
         Calls method run_evaluate on test_set and takes care of logging
         Args:
-            config: Config
             test_set: instance of class Dataset
         Return:
             scores: (dict) scores["acc"] = 0.85 for instance
         """
         self.logger.info("- Evaluating...")
-        scores = self._run_evaluate_epoch(config, test_set)  # evaluate
-        msg = " || ".join([" {} is {:04.2f} ".format(k, v) for k, v in scores.items()])
+        evaluate_loss = self._run_evaluate_epoch(test_set)  # evaluate
+        msg = " || ".join([" {} is {:04.2f} ".format(k, v) for k, v in evaluate_loss.items()])
         self.logger.info("- Eval: {}".format(msg))
 
-        return scores
+        return evaluate_loss
 
     def _auto_backward(self, loss):
         self.optimizer.zero_grad()
@@ -207,11 +206,10 @@ class BaseModel(object):
         raise NotImplementedError("Performs an epoch of training")
 
     # ! MUST OVERWRITE
-    def _run_evaluate_epoch(self, config, test_set):
+    def _run_evaluate_epoch(self, test_set):
         """Model-specific method to overwrite
         Performs an epoch of evaluation
         Args:
-            config: Config
             test_set: Dataset instance
         Returns:
             scores: (dict) scores["acc"] = 0.85 for instance
