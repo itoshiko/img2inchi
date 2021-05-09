@@ -4,6 +4,8 @@ from base import BaseModel
 from data_gen import get_dataLoader
 from model.Img2Seq import Img2Seq
 from pkg.utils.ProgBar import ProgressBar
+from pkg.utils.BeamSearch import beam_decode
+from pkg.utils.BeamSearch import greedy_decode
 
 PAD_ID = 0
 SOS_ID = 1
@@ -62,8 +64,7 @@ class Img2InchiModel(BaseModel):
         train_loader = get_dataLoader(train_set, batch_size=batch_size, mode='Img2Seq')
 
         for i, (img, seq) in enumerate(train_loader):
-            img = torch.FloatTensor(img)  # (N, W, H, C)
-            img = img.permute(0, 3, 1, 2)  # (N, C, W, H)
+            img = torch.FloatTensor(img)
             seq = torch.LongTensor(seq)  # (N,)
             img = img.to(self._device)
             seq = img.to(self._device)
@@ -113,4 +114,29 @@ class Img2InchiModel(BaseModel):
         self.logger.info("- Evaluating: {}".format(prog.info))
 
         return {"Evaluate Loss": losses / len(test_loader)}
+
+    def predict(self, img, max_len=200, mode="beam"):
+        img = img.to(self._device)
+        model = self.model
+        encodings = model.encode(img)
+        result = None
+        if mode=="beam":
+            result = beam_decode(self.model.decoder, encodings)
+        elif mode=="greedy":
+            seq = torch.ones(1, 1).fill_(SOS_ID).type(torch.long).to(self._device)
+            result = greedy_decode(self.model.decoder, encodings, seq)
+        if result.ndim == 3:
+            decoded_result = []
+            for i in range(result.shape[0]):
+                for j in range(result.shape[1]):
+                    decoded_result.append(self._vocab.decode(result[i, j, :]))
+            decoded_tensor = torch.Tensor(decoded_result)
+            decoded_tensor.view(result.shape[0], result.sjape[1])
+            return decoded_tensor
+        elif result.ndim == 2:
+            decoded_result = []
+            for i in range(result.shape[0]):
+                decoded_result.append(self._vocab.decode(result[i, :]))
+            decoded_tensor = torch.Tensor(decoded_result)
+            return decoded_tensor
 

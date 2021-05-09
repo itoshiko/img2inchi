@@ -27,27 +27,27 @@ class EncoderCNN(nn.Module):
         self.cnn = nn.Sequential(
             # conv + max pool -> /2
             # 64 个 3*3 filters, strike = (1, 1), output_img.shape = ceil(L/S) = ceil(input/strike) = (H, W)
-            nn.Conv2d(in_channels=1, out_channels=64,  kernel_size=3, stride=1, padding=1),
+            nn.Conv2d(in_channels=1, out_channels=64, kernel_size=3, stride=1, padding=1),
             nn.ReLU(),
             nn.MaxPool2d(kernel_size=2, stride=2),
 
             # conv + max pool -> /2
-            nn.Conv2d(in_channels=64, out_channels=128,  kernel_size=3, stride=1, padding=1),
+            nn.Conv2d(in_channels=64, out_channels=128, kernel_size=3, stride=1, padding=1),
             nn.ReLU(),
             nn.MaxPool2d(kernel_size=2, stride=2),
 
             # regular conv -> id
-            nn.Conv2d(in_channels=128, out_channels=256,  kernel_size=3, stride=1, padding=1),
+            nn.Conv2d(in_channels=128, out_channels=256, kernel_size=3, stride=1, padding=1),
             nn.ReLU(),
-            nn.Conv2d(in_channels=256, out_channels=256,  kernel_size=3, stride=1, padding=1),
+            nn.Conv2d(in_channels=256, out_channels=256, kernel_size=3, stride=1, padding=1),
             nn.ReLU(),
             nn.MaxPool2d(kernel_size=(2, 1), stride=(2, 1)),
-            nn.Conv2d(in_channels=256, out_channels=512,  kernel_size=3, stride=1, padding=1),
+            nn.Conv2d(in_channels=256, out_channels=512, kernel_size=3, stride=1, padding=1),
             nn.ReLU(),
             nn.MaxPool2d(kernel_size=(1, 2), stride=(1, 2)),
 
             # conv
-            nn.Conv2d(in_channels=512, out_channels=512,  kernel_size=3, stride=1, padding=0),
+            nn.Conv2d(in_channels=512, out_channels=512, kernel_size=3, stride=1, padding=0),
             nn.ReLU(),
         )
         w, h = getWH(img_w, img_h)
@@ -64,8 +64,9 @@ class EncoderCNN(nn.Module):
         out = out.permute(0, 2, 3, 1)  # (batch_size, encoded_image_size, encoded_image_size, num_channel)
         batch_size, _, _, dim_encoder = out.shape
         # Flatten encoded_image
-        out = out.view(batch_size, -1, dim_encoder) # (batch_size, num_pixels, dim_encoder)
+        out = out.view(batch_size, -1, dim_encoder)  # (batch_size, num_pixels, dim_encoder)
         return out
+
 
 class PositionalEncodingNd(nn.Module):
     def __init__(self, d_pos: int, max_size: int, d_model: int):
@@ -82,8 +83,8 @@ class PositionalEncodingNd(nn.Module):
         pos = torch.arange(0, max_size).unsqueeze(0)
         self.num = den.shape[0]
         pos_embedding = torch.zeros((max_size, self.num))
-        pos_embedding[0::2, :] = torch.sin(den * pos)   # even indices
-        pos_embedding[1::2, :] = torch.cos(den * pos)   # odd  indices
+        pos_embedding[0::2, :] = torch.sin(den * pos)  # even indices
+        pos_embedding[1::2, :] = torch.cos(den * pos)  # odd  indices
         self.register_buffer('pos_embedding', pos_embedding)
 
     def forward(self, x: Tensor):
@@ -101,10 +102,12 @@ class PositionalEncodingNd(nn.Module):
             x += embed  # [1, 512, 14, 1]; [1, 512, 1, 14]
         return x
 
+
 class Attention(nn.Module):
     """
     Attention Network.
     """
+
     def __init__(self, dim_encoder, dim_decoder, dim_attention):
         """
         :param dim_encoder: feature size of encoded images
@@ -198,8 +201,8 @@ class DecoderWithAttention(nn.Module):
         attention_weighted_encodings = self.attention(encodings, hidden)
         gate = self.sigmoid(self.f_beta(hidden))  # gating scalar, (batch_size_t, dim_encoder)
         attention_weighted_encodings = gate * attention_weighted_encodings
-        hidden, cell = self.lstm(torch.cat([seqs, attention_weighted_encodings], dim=1), 
-                                (hidden, cell))  # (batch_size_t, dim_decoder)
+        hidden, cell = self.lstm(torch.cat([seqs, attention_weighted_encodings], dim=1),
+                                 (hidden, cell))  # (batch_size_t, dim_decoder)
         preds = self.generator(self.dropout(hidden))  # (batch_size_t, vocab_size)
         return hidden, cell, preds
 
@@ -243,10 +246,11 @@ class DecoderWithAttention(nn.Module):
         for t in range(max(decode_lengths)):
             batch_size_t = sum([l > t for l in decode_lengths])
             h, c, preds = self.decode_step(encodings, h[:batch_size_t], c[:batch_size_t],
-                                            seqs[:batch_size_t, t, :])
+                                           seqs[:batch_size_t, t, :])
             predictions[:batch_size_t, t, :] = preds
 
         return predictions
+
 
 class Img2Seq(nn.Module):
     def __init__(self, img_w, img_h, vocab_size, dim_encoder, dim_decoder, dim_attention, dim_embed, dropout=0.5):
@@ -291,10 +295,11 @@ class Img2Seq(nn.Module):
         :param encodings: encoded images, a tensor of shape (batch_size, num_pixels, dim_encoder)
         :param hidden: hidden state
         :param cell: memory cell state
+        :param seqs:
         :return: hidden, cell, preds (the predicted probability or scores of the next token)
         """
         return self.decoder.decode_step(encodings, hidden, cell, seqs)
-    
+
     def forward(self, img, seqs):
         """
         Forward propagation.

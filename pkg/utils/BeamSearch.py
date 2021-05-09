@@ -33,7 +33,7 @@ class BeamSearchNode(object):
         return self.log_p / float(self.l - 1 + 1e-6) + alpha * reward
 
 
-def beam_decode(decoder, encodings, seqs, beam_width=10, top_k=1):
+def beam_decode(decoder, encodings, beam_width=10, top_k=1):
     """
     :param decoder: decoder of network that implements decoder_step
     :param encodings: encoder output
