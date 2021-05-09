@@ -36,6 +36,12 @@ class BeamSearchNode(object):
     def __lt__(self, other):
         return self.prob < other.prob
 
+
+def delete_by_index(list1, index):
+    index = list(set(range(len(list1))) - set(index))
+    return [list1[i] for i in index]
+
+
 def beam_decode(decoder, encodings, beam_width=10, topk=1, max_len=200):
     """
     :param decoder: decoder of network that implements decoder_step
@@ -80,7 +86,9 @@ def beam_decode(decoder, encodings, beam_width=10, topk=1, max_len=200):
                     heapq.heappush(end_nodes[k], node)  # push the ended node
                     if len(end_nodes[k]) > topk:        # if end_nodes is too many
                         heapq.heappop(node)             # then pop the least scored node
-            del nodes[k][end_id]                        # delete all ended node from active nodes
+
+            # delete all ended node from active nodes
+            nodes[k] = delete_by_index(nodes[k], end_id)
 
     # process the decoded seqs
     for k in range(batch_size):
