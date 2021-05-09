@@ -85,7 +85,7 @@ def beam_decode(decoder, encodings, beam_width=10, topk=1, max_len=200):
                     end_id.append(j)                    # store its id
                     heapq.heappush(end_nodes[k], node)  # push the ended node
                     if len(end_nodes[k]) > topk:        # if end_nodes is too many
-                        heapq.heappop(node)             # then pop the least scored node
+                        heapq.heappop(end_nodes[k])             # then pop the least scored node
 
             # delete all ended node from active nodes
             nodes[k] = delete_by_index(nodes[k], end_id)
