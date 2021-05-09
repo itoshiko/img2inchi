@@ -215,3 +215,16 @@ class BaseModel(object):
             scores: (dict) scores["acc"] = 0.85 for instance
         """
         raise NotImplementedError("Performs an epoch of evaluation")
+
+    # ! MUST OVERWRITE
+    def predict(self, img, max_len=200, mode="beam"):
+        """Model-specific method to overwrite
+                Performs an epoch of evaluation
+                Args:
+                    img: images to predict
+                    max_len: max length for inchi string
+                    mode: search mode, beam or greedy
+                Returns:
+                    scores: (dict) scores["acc"] = 0.85 for instance
+                """
+        raise NotImplementedError("Performs prediction")
