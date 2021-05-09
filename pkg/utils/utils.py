@@ -36,12 +36,3 @@ def read_img(img_id, root):
         img = Image.open(img_path)
         img = np.array(img.convert('RGB'))
     return img
-
-def one_hot(seqs, vocab_size):
-    d1, d2 = seqs.shape
-    seqs = seqs.unsqueeze(-1)
-    one_hot = torch.zeros(d1, d2, vocab_size)
-    one_hot.scatter_(dim=2, index=seqs.long(), src=torch.ones(d1, d2, vocab_size))
-    return one_hot
-
-
