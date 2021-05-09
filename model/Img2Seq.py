@@ -9,6 +9,7 @@ import torch.nn.functional as F
 from torch.nn.utils.rnn import pack_padded_sequence
 import numpy as np
 import torchvision
+from one_hot import one_hot
 
 device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
 
@@ -140,6 +141,7 @@ class Attention(nn.Module):
 class DecoderWithAttention(nn.Module):
     """
     Decoder LSTM with Attention.
+    Seq use the one-hot encoding
     """
 
     def __init__(self, dim_encoder, dim_decoder, dim_attention, dim_embed, vocab_size, dropout=0.5):
@@ -160,7 +162,7 @@ class DecoderWithAttention(nn.Module):
         self.dropout = dropout
 
         self.attention = Attention(dim_encoder, dim_decoder, dim_attention)  # attention network
-
+        self.embed = one_hot(vocab_size)
         self.dropout = nn.Dropout(p=self.dropout)
         self.lstm = nn.LSTMCell(dim_embed + dim_encoder, dim_decoder, bias=True)  # decoding LSTMCell
         self.init_h = nn.Linear(dim_encoder, dim_decoder)  # linear layer to find initial hidden state of LSTMCell
@@ -196,14 +198,21 @@ class DecoderWithAttention(nn.Module):
         :param encodings: encoded images, a tensor of shape (batch_size, num_pixels, dim_encoder)
         :param hidden: hidden state
         :param cell: memory cell state
-        :return: hidden, cell, preds (the predicted probability or scores of the next token)
+        :param seqs: sequences, a tensor of shape (batch_size, dim_embed) or (batch_size, 1) or (batch_size)
+                    the last two shape means that the seqs haven't been embeded
+        :return: hidden, cell, preds (the predicted logits or scores of the next token)
         """
+        if seqs.ndim == 1:
+            seqs.unsqueeze(-1)
+        if seqs.shape[-1] == 1:
+            seqs = self.embed(seqs)
+        # After the process above, the shape of seqs should be (batch_size, dim_embed/vocab_size)
         attention_weighted_encodings = self.attention(encodings, hidden)
-        gate = self.sigmoid(self.f_beta(hidden))  # gating scalar, (batch_size_t, dim_encoder)
+        gate = self.sigmoid(self.f_beta(hidden))  # gating scalar, (batch_size, dim_encoder)
         attention_weighted_encodings = gate * attention_weighted_encodings
         hidden, cell = self.lstm(torch.cat([seqs, attention_weighted_encodings], dim=1),
-                                 (hidden, cell))  # (batch_size_t, dim_decoder)
-        preds = self.generator(self.dropout(hidden))  # (batch_size_t, vocab_size)
+                                 (hidden, cell))  # (batch_size, dim_decoder)
+        preds = self.generator(self.dropout(hidden))  # (batch_size, vocab_size)
         return hidden, cell, preds
 
     def forward(self, encodings, seqs):
@@ -212,7 +221,7 @@ class DecoderWithAttention(nn.Module):
 
         :param encodings: encoded images, a tensor of shape (batch_size, num_pixels, dim_encoder)
         :param seqs: encoded seqs in the decending order by sequence lenths, 
-                     a tensor of shape (batch_size, max_sequence_length, dim_embed)
+                     a tensor of shape (batch_size, max_sequence_length)
         :return: scores for vocabulary
         """
 
@@ -222,6 +231,9 @@ class DecoderWithAttention(nn.Module):
 
         # Flatten image
         encodings = encodings.view(batch_size, -1, dim_encoder)  # (batch_size, num_pixels, dim_encoder)
+
+        # encode the sequences by one-hot
+        seqs = self.embed(seqs)
 
         '''
         # Sort input data by decreasing lengths; why? apparent below
