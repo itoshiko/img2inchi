@@ -9,20 +9,22 @@ from pkg.utils.LRScheduler import LRSchedule
 
 
 @click.command()
-@click.option('--data', default="config/data_small.yaml",
+@click.option('--data', default="./config/data_small.yaml",
               help='Path to data yaml config')
-@click.option('--vocab', default="config/vocab_small.yaml",
+@click.option('--vocab', default="./config/vocab_small.yaml",
               help='Path to vocab yaml config')
-@click.option('--training', default="config/training_small.yaml",
+@click.option('--training', default="./config/training_small.yaml",
               help='Path to training yaml config')
-@click.option('--model', default="config/model.yaml",
+@click.option('--model', default="./config/model.yaml",
               help='Path to model yaml config')
+@click.option('--output', default="./model weights",
+              help='Path to save trained model')
 def main(data, vocab, training, model, output):
     # Load configs
     dir_output = output
     config = Config([data, vocab, training, model])
     config.save(dir_output)
-    my_vocab = vocab(config)
+    my_vocab = vocab(config.path_train_root)
 
     # Load datasets
     train_set = Img2SeqDataset(root=config.path_train_root,
@@ -44,11 +46,11 @@ def main(data, vocab, training, model, output):
                              lr_min=config.lr_min)
     # Build model and train
     if config.model_name == "img2inchi":
-        model = Img2InchiModel(config, dir_output, vocab)
+        model = Img2InchiModel(config, dir_output, my_vocab)
         model.build_train(config)
         model.train(config, train_set, val_set, lr_schedule)
     elif config.model_name == "transformer":
-        model = Img2InchiTransformerModel(config, dir_output, vocab)
+        model = Img2InchiTransformerModel(config, dir_output, my_vocab)
         model.build_train(config)
         model.train(config, train_set, val_set, lr_schedule)
 

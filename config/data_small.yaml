@@ -1,0 +1,8 @@
+path_train_root: './'
+path_train_data_dir: 'data/prcd_data_small'
+path_train_img_dir: 'data/prcd_data_small'
+train_annotations_file: 'data'
+path_val_root: './'
+path_val_data_dir: 'data/prcd_data_small'
+path_val_img_dir: 'data/prcd_data_small'
+val_annotations_file: 'data'

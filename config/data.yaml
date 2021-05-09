@@ -1,0 +1,8 @@
+path_train_root:
+path_train_data_dir:
+path_train_img_dir:
+train_annotations_file:
+path_val_root:
+path_val_data_dir:
+path_val_img_dir:
+val_annotations_file:

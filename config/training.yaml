@@ -1,0 +1,13 @@
+model_name:
+lr_init:
+start_decay:
+end_decay:
+end_warm:
+lr_warm:
+lr_min:
+batch_size:
+lr_method:
+lr_scheduler:
+device:
+criterion_method:
+n_epochs:

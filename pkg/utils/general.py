@@ -49,7 +49,7 @@ class Config:
 
     def load_yaml(self, source):
         with open(source) as f:
-            data = yaml.load(f)
+            data = yaml.load(f, Loader=yaml.FullLoader)
             self.__dict__.update(data)
 
     def save(self, dir_name):
