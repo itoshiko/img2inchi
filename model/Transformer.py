@@ -103,7 +103,7 @@ class TokenEmbedding(nn.Module):
         return self.embedding(tokens.long()) * math.sqrt(self.emb_size)
 
 class FeaturesExtractor(nn.Module):
-    def __init__(self, num_features=512, output_size=(16, 32), extractor_name='resnet101', tr_extractor=False):
+    def __init__(self, num_features=512, output_size=(16, 32), extractor_name='resnet34', tr_extractor=False):
         super(FeaturesExtractor, self).__init__()
         if extractor_name == 'resnet101':
             net = models.resnet101(pretrained=False)
@@ -142,6 +142,7 @@ class Img2SeqTransformer(nn.Module):
                 d_model: int, nhead: int, vocab_size: int,
                 dim_feedforward:int = 1024, dropout:float = 0.1):
         super(Img2SeqTransformer, self).__init__()
+        self.device = 'cuda:0' if torch.cuda.is_available() else 'cpu'
         self.d_model = d_model
         self.features_extractor = FeaturesExtractor(num_features=d_model, output_size=feature_size, 
                                                 extractor_name=extractor_name, tr_extractor=tr_extractor)
@@ -157,16 +158,14 @@ class Img2SeqTransformer(nn.Module):
         self.positional_encoding_seq = PositionalEncodingNd(d_pos=1, max_size=max_seq_len, d_model=d_model)
 
     def forward(self, img: Tensor, seq: Tensor):
+        seq = seq.transpose(0, 1).contiguous()
         memory = self.encode(img)
-        outs = self.decode(seq, memory)
+        outs = self.decode(seq, memory).transpose(0, 1).contiguous()
         return self.generator(outs)
 
     def encode(self, img: Tensor):
         '''
         batch_size = img.shape[0]
-        patch = self.img_split(img)                     # (batch_size, h0, w0, patch_size * patch_size)
-        patch = self.patch_emb(patch)                   # (batch_size, h0, w0, d_model)
-        patch = patch.permute(1, 2, 0, 3).contiguous()   # (h0, w0, batch_size, d_model)
         '''
         features = self.features_extractor(img)
         _, _, batch_size, n_feature = features.shape
@@ -175,55 +174,13 @@ class Img2SeqTransformer(nn.Module):
 
     def decode(self, seq: Tensor, memory: Tensor):
         seq_emb = self.positional_encoding_seq(self.seq_emb(seq))
-        tgt_mask = self.generate_square_subsequent_mask(seq.shape[0])
+        tgt_mask = self.generate_square_subsequent_mask(seq.shape[0], seq.device)
         tgt_padding_mask = (seq == PAD_ID).transpose(0, 1)
         return self.transformer_decoder(tgt=seq_emb, memory=memory, tgt_mask=tgt_mask, memory_mask=None,
                                         tgt_key_padding_mask=tgt_padding_mask, memory_key_padding_mask=None)
 
-    '''
-    def img_split(self, img: Tensor):
-        """
-        Split the image(s) into patches
-        Stride is patch_size // 2
-        w0 = 2 * w // patch_size - 1
-        ho = 2 * h // patch_size - 1
-        :param img: (batch_size, h, w)
-        :return: (batch_size, h0, w0, patch_size * patch_size)
-        """
-        batch_size, h, w = img.shape
-        patch_size = self.patch_size
-        pad_w, pad_h = -w % patch_size, -h % patch_size
-        img = F.pad(img, (0, pad_w, 0, pad_h))
-        w += pad_w
-        h += pad_h
-        w0 = 2 * w // patch_size - 1
-        h0 = 2 * h // patch_size - 1
-        patch = torch.zeros((batch_size, h0 * patch_size, w0 * patch_size), device=self.get_device())
-        ind_w = []
-        ind_h = []
-        for i in range(w // patch_size):
-            ind_w += range(i * 2 * patch_size, (i * 2 + 1) * patch_size)
-        for i in range(h // patch_size):
-            ind_h += range(i * 2 * patch_size, (i * 2 + 1) * patch_size)
-        ind_w = Tensor(ind_w).long()
-        ind_h = Tensor(ind_h).long()
-        (patch[:, ind_h, :])[:, :, ind_w] = img
-        ind_w = ind_w[:-patch_size]
-        ind_h = ind_h[:-patch_size]
-        ind_w = ind_w + patch_size // 2
-        ind_h = ind_h + patch_size // 2
-        (patch[:, ind_h, :])[:, :, ind_w] = img[:, patch_size // 2:-(patch_size // 2), patch_size // 2:-(patch_size // 2)]
-        patch = patch.view(batch_size, h0, patch_size, w0, patch_size)
-        patch = patch.permute(0, 1, 3, 2, 4)
-        patch = patch.reshape(batch_size, h0, w0, -1)
-        return patch
-        '''
-
-    def get_device(self):
-        return next(self.parameters()).device
-
-    def generate_square_subsequent_mask(self, size):
-        mask = (torch.triu(torch.ones((size, size), device=self.get_device())) == 1).transpose(0, 1)
+    def generate_square_subsequent_mask(self, size, device):
+        mask = (torch.triu(torch.ones((size, size), device=device)) == 1).transpose(0, 1)
         mask = mask.float().masked_fill(mask == 0, float('-inf')).masked_fill(mask == 1, float(0.0))
         return mask
 

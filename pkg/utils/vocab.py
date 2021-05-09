@@ -73,7 +73,7 @@ class vocab():
         self.SOS_ID = self.__call__(SOS)
         self.EOS_ID = self.__call__(EOS)
 
-    def encode(self, inchi: str, no_mole_fml: bool=True):
+    def encode(self, inchi: str, no_mole_fml: bool=False):
         '''
         encode but remove the molecular formula
         '''
