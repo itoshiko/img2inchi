@@ -1,7 +1,7 @@
-import operator
-from queue import PriorityQueue
+import heapq
 
 import torch
+import torch.nn.functional as F
 
 device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
 
@@ -11,38 +11,45 @@ EOS_ID = 2
 
 
 class BeamSearchNode(object):
-    def __init__(self, hiddenState, cellState, previousNode, wordId, logProb, length):
+    def __init__(self, hiddenState, cellState, parent, wordId, prob, batch_id=None):
         """
-        :param hiddenState:
-        :param previousNode:
-        :param wordId:
-        :param logProb:
-        :param length:
+        :param batch_id: the batch that this sequence comes from
+        :param hiddenState, cellState:
+        :param parent: the previous node that this node was generated from
+        :param wordId: new word gives by its id
+        :param prob: the conditional probability that takes this word
         """
+        self.batch_id = batch_id
         self.h = hiddenState
         self.c = cellState
-        self.prevNode = previousNode
-        self.wordid = wordId
-        self.log_p = logProb
-        self.l = length
+        if parent:
+            pre_seq = parent.seq
+            pre_prob = parent.prob
+            self.batch_id = parent.batch_id
+        else:
+            pre_seq = []
+            pre_prob = 1
+        self.seq = pre_seq + [wordId]
+        self.prob = pre_prob * prob
+        if not batch_id: raise Exception('Cannot get the batch_id')
 
-    def eval(self, alpha=1.0):
-        reward = 0
-        # Add here a function for shaping a reward
-
-        return self.log_p / float(self.l - 1 + 1e-6) + alpha * reward
+    def __lt__(self, other):
+        return self.prob < other.prob
 
 
-def beam_decode(decoder, encodings, beam_width=10, top_k=1):
+def delete_by_index(list1, index):
+    index = list(set(range(len(list1))) - set(index))
+    return [list1[i] for i in index]
+
+
+def beam_decode(decoder, encodings, beam_width=10, topk=1, max_len=200):
     """
     :param decoder: decoder of network that implements decoder_step
     :param encodings: encoder output
-    :param seqs:
     :param beam_width: width of beam search
-    :param top_k: how many sentence do you want to generate
     :return: decoded_batch
     """
-
+    topk = min(topk, beam_width)
     dim_encoder = encodings.shape[-1]
     if encodings.ndim == 3:  # single input, add batch=1
         encodings = encodings.unsqueeze(0).view(1, -1, dim_encoder)
@@ -53,87 +60,86 @@ def beam_decode(decoder, encodings, beam_width=10, top_k=1):
         raise NotImplementedError("Unknown num of dims: {}".format(encodings.ndim))
     batch_size = encodings.shape[0]
     decoded_batch = []
+    decode_step = decoder.decode_step
     # Initialize LSTM state
     h, c = decoder.init_hidden_state(encodings)  # (batch_size, dim_decoder)
 
-    # decoding goes sentence by sentence
-    for idx in range(batch_size):
-        # Start with the start of the sentence token
-        decoder_input = torch.ones(1, 1).fill_(SOS_ID).type(torch.long).to(device)
+    nodes = []  # store all the active nodes for each seq in batch. 2d list
+    end_nodes = [[] * batch_size]   # store all the ended nodes for each seq. 2d list
 
-        # Number of sentence to generate
-        endnodes = []
-        number_required = min((top_k + 1), top_k - len(endnodes))
+    # Start with the start of the sentence token for each seq
+    for k in range(batch_size):
+        nodes.append([BeamSearchNode(h[k, :], c[k, :], None, SOS_ID, 1, k)])
 
-        # starting node -  hidden vector, previous node, word id, logp, length
-        node = BeamSearchNode(h, c, None, decoder_input, 0, 1)
-        nodes = PriorityQueue()
+    # decode
+    for _ in range(max_len):
+        # expand the nodes and get the successor
+        nodes = expand_nodes(beam_width, decode_step, encodings, nodes)
 
-        # start the queue
-        nodes.put((-node.eval(), node))
-        qsize = 1
+        # check the ended nodes
+        for k in range(batch_size):
+            end_id = []
+            for j in range(len(nodes[k])):
+                node = nodes[k][j]
+                if node.seq[-1] == EOS_ID:              # if the node has ended
+                    end_id.append(j)                    # store its id
+                    heapq.heappush(end_nodes[k], node)  # push the ended node
+                    if len(end_nodes[k]) > topk:        # if end_nodes is too many
+                        heapq.heappop(end_nodes[k])             # then pop the least scored node
 
-        # start beam search
-        while True:
-            # give up when decoding takes too long
-            if qsize > 2000:
-                break
+            # delete all ended node from active nodes
+            nodes[k] = delete_by_index(nodes[k], end_id)
 
-            # fetch the best node
-            score, n = nodes.get()
-            decoder_input = n.wordid
-            decoder_hidden = n.h
-            decoder_cell = n.c
-
-            if n.wordid.item() == EOS_ID and n.prevNode is not None:
-                endnodes.append((score, n))
-                # if we reached maximum # of sentences required
-                if len(endnodes) >= number_required:
-                    break
-                else:
-                    continue
-
-            # decode for one step using decoder
-            decoder_hidden, decoder_cell, decoder_output = decoder.decode_step(encodings, decoder_hidden,
-                                                                               decoder_cell, decoder_input)
-
-            # PUT HERE REAL BEAM SEARCH OF TOP
-            log_prob, indexes = torch.topk(decoder_output, beam_width, dim=1)
-            nextnodes = []
-
-            for new_k in range(beam_width):
-                decoded_t = indexes[0][new_k].view(1, -1)
-                log_p = log_prob[0][new_k].item()
-
-                node = BeamSearchNode(decoder_hidden, decoder_cell, n, decoded_t, n.log_p + log_p, n.l + 1)
-                score = -node.eval()
-                nextnodes.append((score, node))
-
-            # put them into queue
-            for i in range(len(nextnodes)):
-                score, nn = nextnodes[i]
-                nodes.put((score, nn))
-                # increase qsize
-            qsize += len(nextnodes) - 1
-
-        # choose nbest paths, back trace them
-        if len(endnodes) == 0:
-            endnodes = [nodes.get() for _ in range(top_k)]
-
-        utterances = []
-        for score, n in sorted(endnodes, key=operator.itemgetter(0)):
-            utterance = [n.wordid]
-            # back trace
-            while n.prevNode != None:
-                n = n.prevNode
-                utterance.append(n.wordid)
-
-            utterance = utterance[::-1]
-            utterances.append(utterance)
-
-        decoded_batch.append(utterances)
-
+    # process the decoded seqs
+    for k in range(batch_size):
+        num_rem =  topk - end_nodes[k]
+        if num_rem > 0:
+            end_nodes[k] += nodes[k][:num_rem]
+        decode_seq = []
+        for node in end_nodes[k]:
+            decode_seq.append(torch.Tensor(node.seq).long())
+        decoded_batch.append(decode_seq)
+    
     return decoded_batch
+
+
+def expand_nodes(beam_width, decode_step, encodings, nodes):
+    """
+    :param beam_width: width of beam search
+    :param decode_step: a function that decoder a single step
+    :param encodings: encoder output
+    :return: the successor
+    """
+    # return the tuple: (probability, encodings, wordId, hiddenState, cellState)
+    read_node = lambda node: (node.prob, encodings[node.batch_id], node.seq[-1], node.h, node.c)
+    batch_size = encodings.shape[0]
+    next_nodes = [[] * batch_size]
+
+    nodes = [node for node in _nodes for _nodes in nodes]   # flatten
+
+    for i in range(0, len(nodes), batch_size):
+        nodes_per_batch = nodes[i:i + batch_size]
+        pre_probs, enc, inputs, h, c = list(zip(*[read_node(node) for node in nodes_per_batch]))
+        inputs = torch.Tensor(inputs).long().to(device)
+        enc = torch.stack(enc)
+        h   = torch.stack(h)
+        c   = torch.stack(c)
+
+        # decode for one step using decode_step
+        h, c, o = decode_step(encodings, h, c, inputs)
+
+        probs = F.softmax(o, dim=1)
+        probs, indexes = torch.topk(probs, beam_width, dim=1)
+        for k in range(len(nodes_per_batch)):
+            next_nodes[nodes_per_batch[k].batch_id] += [
+                BeamSearchNode(h[k, :], c[k, :], nodes_per_batch[k], indexes[j], probs[k][j])
+                for j in range(beam_width)
+            ]
+
+    for k in range(batch_size):
+        next_nodes[k] = heapq.nlargest(beam_width, next_nodes[k])
+
+    return next_nodes
 
 
 def greedy_decode(decoder, encodings, seqs):
