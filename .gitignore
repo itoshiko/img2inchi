@@ -134,4 +134,6 @@ dmypy.json
 # data
 *.pkl
 *.csv
-data/*
+*.png
+*.zip
+[0-9abcdef]/
