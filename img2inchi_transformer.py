@@ -17,7 +17,10 @@ class Img2InchiTransformerModel(BaseModel):
     def getModel(self):
         feature_size_1 = self._config.transformer["feature_size_1"]
         feature_size_2 = self._config.transformer["feature_size_2"]
-        feature_size = (feature_size_1, feature_size_2)
+        if feature_size_1 and feature_size_2:
+            feature_size = (feature_size_1, feature_size_2)
+        else:
+            feature_size = None
         extractor_name = self._config.transformer["extractor_name"]
         max_seq_len = self._config.transformer["max_seq_len"]
         tr_extractor = self._config.transformer["tr_extractor"]
@@ -108,7 +111,7 @@ class Img2InchiTransformerModel(BaseModel):
                 seq = seq.to(self._device)
                 seq_input = seq[:, :-1]
                 logits = self.model(img, seq_input)
-                seq_out = seq[:, :1]
+                seq_out = seq[:, 1:]
                 loss = self.criterion(logits.reshape(-1, logits.shape[-1]), seq_out.reshape(-1))
                 losses += loss.item()
                 prog.update(i + 1, [("loss", losses / len(test_loader))])

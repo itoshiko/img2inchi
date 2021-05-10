@@ -1,6 +1,6 @@
 transformer:
-  feature_size_1: 1
-  feature_size_2: 1
+  feature_size_1:
+  feature_size_2:
   extractor_name: 'resnet34'
   max_seq_len: 200
   tr_extractor: FALSE
@@ -8,15 +8,15 @@ transformer:
   num_decoder_layers: 6
   d_model: 512
   nhead: 8
-  vocab_size: 1000
-  dim_feedforward: 1024
+  vocab_size:
+  dim_feedforward: 512
   dropout: 0.2
 img2seq:
-  img_w: 1
-  img_h: 1
-  vocab_size: 1000
-  dim_encoder: 1
-  dim_decoder: 1
-  dim_attention: 1
-  dim_embed: 1
+  img_w: 512
+  img_h: 256
+  vocab_size:
+  dim_encoder: 512
+  dim_decoder: 512
+  dim_attention: 512
+  dim_embed: 512
   dropout: 0.1

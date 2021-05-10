@@ -37,7 +37,7 @@ class BaseModel(object):
         self.logger.info("   - " + model_name)
         self.logger.info("   - " + device)
         self.device = torch.device(device if torch.cuda.is_available() else 'cpu')
-        self.model = self.getModel(model_name)
+        self.model = self.getModel()
         self.model = self.model.to(self.device)
 
     def _init_optimizer(self, lr_method="adam", lr=1e-3):
