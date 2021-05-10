@@ -137,3 +137,4 @@ dmypy.json
 *.png
 *.zip
 [0-9abcdef]/
+export_config.yaml

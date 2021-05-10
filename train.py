@@ -4,7 +4,7 @@ from data_gen import Img2SeqDataset
 from img2inchi import Img2InchiModel
 from img2inchi_transformer import Img2InchiTransformerModel
 from pkg.utils.general import Config
-from pkg.utils.vocab import vocab
+from pkg.utils.vocab import vocab as vocabulary
 from pkg.utils.LRScheduler import LRSchedule
 
 
@@ -17,14 +17,15 @@ from pkg.utils.LRScheduler import LRSchedule
               help='Path to training yaml config')
 @click.option('--model', default="./config/model.yaml",
               help='Path to model yaml config')
-@click.option('--output', default="./model weights",
+@click.option('--output', default="./model weights/",
               help='Path to save trained model')
 def main(data, vocab, training, model, output):
     # Load configs
     dir_output = output
     config = Config([data, vocab, training, model])
     config.save(dir_output)
-    my_vocab = vocab(config.path_train_root)
+    my_vocab = vocabulary(config.path_train_root)
+    config.transformer["vocab_size"] = my_vocab.size
 
     # Load datasets
     train_set = Img2SeqDataset(root=config.path_train_root,
@@ -45,7 +46,7 @@ def main(data, vocab, training, model, output):
                              lr_warm=config.lr_warm,
                              lr_min=config.lr_min)
     # Build model and train
-    if config.model_name == "img2inchi":
+    if config.model_name == "seq2seq":
         model = Img2InchiModel(config, dir_output, my_vocab)
         model.build_train(config)
         model.train(config, train_set, val_set, lr_schedule)

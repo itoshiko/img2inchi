@@ -1,8 +1,13 @@
 model_name: 'transformer'
 lr_init: 0.001
 start_decay: 0
-end_decay: ~
-end_warm: ~
+end_decay: 10000
+end_warm: 100
 lr_warm: 0.0001
 lr_min: 0.0001
-batch_size: 128
+batch_size: 40
+lr_method: 'adam'
+lr_scheduler: 'CosineAnnealingLR'
+device: 'cuda:0'
+criterion_method: 'CrossEntropyLoss'
+n_epochs: 10

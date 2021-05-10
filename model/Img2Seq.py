@@ -9,7 +9,7 @@ import torch.nn.functional as F
 from torch.nn.utils.rnn import pack_padded_sequence
 import numpy as np
 import torchvision
-from one_hot import one_hot
+from .one_hot import one_hot
 
 device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
 
@@ -23,7 +23,7 @@ def getWH(img_w, img_h):
 
 
 class EncoderCNN(nn.Module):
-    def __init__(self, img_w, img_h):
+    def __init__(self, img_w, img_h, dim_encoder=512):
         super(EncoderCNN, self).__init__()
         self.cnn = nn.Sequential(
             # conv + max pool -> /2
@@ -48,7 +48,7 @@ class EncoderCNN(nn.Module):
             nn.MaxPool2d(kernel_size=(1, 2), stride=(1, 2)),
 
             # conv
-            nn.Conv2d(in_channels=512, out_channels=512, kernel_size=3, stride=1, padding=0),
+            nn.Conv2d(in_channels=512, out_channels=dim_encoder, kernel_size=3, stride=1, padding=0),
             nn.ReLU(),
         )
         w, h = getWH(img_w, img_h)
@@ -279,7 +279,9 @@ class Img2Seq(nn.Module):
         :param dim_embed: dimension of embeded token
         :param dropout: dropout
         """
-        self.encoder = EncoderCNN(img_w, img_h)
+        if not dim_encoder:
+            dim_encoder = 512
+        self.encoder = EncoderCNN(img_w, img_h, dim_encoder)
         self.decoder = DecoderWithAttention(dim_attention, dim_embed, dim_decoder, dim_encoder, vocab_size, dropout)
 
     def encode(self, img):

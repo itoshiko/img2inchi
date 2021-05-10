@@ -4,7 +4,7 @@ from torch import Tensor
 from torch.nn.utils.rnn import pad_sequence
 from torch.utils.data import DataLoader, Dataset
 from torchvision.transforms import ToTensor
-from pkg.utils.utils import read_img, join, one_hot
+from pkg.utils.utils import read_img, join
 from pkg.utils.vocab import vocab
 
 class Img2SeqDataset(Dataset):
