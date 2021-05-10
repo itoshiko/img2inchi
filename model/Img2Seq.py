@@ -215,7 +215,7 @@ class DecoderWithAttention(nn.Module):
         preds = self.generator(self.dropout(hidden))  # (batch_size, vocab_size)
         return hidden, cell, preds
 
-    def forward(self, encodings, seqs):
+    def forward(self, encodings, seqs, seq_lenth):
         """
         Forward propagation.
 
@@ -247,7 +247,7 @@ class DecoderWithAttention(nn.Module):
 
         # We won't decode at the <end> position, since we've finished generating as soon as we generate <end>
         # So, decoding lengths are actual lengths - 1
-        decode_lengths = [len(seq) - 1 for seq in seqs]
+        decode_lengths = [l - 1 for l in seq_lenth]
 
         # Create tensors to hold word predicion scores and alphas
         predictions = torch.zeros(batch_size, max(decode_lengths), vocab_size).to(device)
@@ -314,9 +314,9 @@ class Img2Seq(nn.Module):
         """
         return self.decoder.decode_step(encodings, hidden, cell, seqs)
 
-    def forward(self, img, seqs):
+    def forward(self, img, seqs, seq_lenth):
         """
         Forward propagation.
         """
         encodings = self.encoder(img)
-        return self.decoder(encodings, seqs)
+        return self.decoder(encodings, seqs, seq_lenth)

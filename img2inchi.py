@@ -63,13 +63,13 @@ class Img2InchiModel(BaseModel):
         losses = 0
         train_loader = get_dataLoader(train_set, batch_size=batch_size, mode='Img2Seq')
 
-        for i, (img, seq) in enumerate(train_loader):
-            img = torch.FloatTensor(img)
-            seq = torch.LongTensor(seq)  # (N,)
+        for i, (img, seq, seq_lenth) in enumerate(train_loader):
+            # img = torch.FloatTensor(img)
+            # seq = torch.LongTensor(seq)  # (N,)
             img = img.to(self._device)
             seq = img.to(self._device)
             seq_input = seq[:, :-1]
-            logits = self.model(img, seq_input)
+            logits = self.model(img, seq_input, seq_lenth)
             self.optimizer.zero_grad()
             seq_out = seq[:, 1:]
             loss = self.criterion(logits.reshape(-1, logits.shape[-1]), seq_out.reshape(-1))
@@ -101,12 +101,12 @@ class Img2InchiModel(BaseModel):
             prog = ProgressBar(nbatches)
             test_loader = get_dataLoader(test_set, batch_size=batch_size, mode='Img2Seq')
 
-            for i, (img, seq) in enumerate(test_loader):
+            for i, (img, seq, seq_lenth) in enumerate(test_loader):
                 img = img.to(self._device)
                 seq = seq.to(self._device)
                 seq_input = seq[:, :-1]
-                logits = self.model(img, seq_input)
-                seq_out = seq[:, :1]
+                logits = self.model(img, seq_input, seq_lenth)
+                seq_out = seq[:, 1:]
                 loss = self.criterion(logits.reshape(-1, logits.shape[-1]), seq_out.reshape(-1))
                 losses += loss.item()
                 prog.update(i + 1, [("loss", losses / len(test_loader))])
@@ -121,7 +121,7 @@ class Img2InchiModel(BaseModel):
         encodings = model.encode(img)
         result = None
         if mode=="beam":
-            result = beam_decode(self.model.decoder, encodings)
+            result = beam_decode(decoder=self.model.decoder, encodings=encodings, beam_width=10, topk=1, max_len=max_len)
         elif mode=="greedy":
             seq = torch.ones(1, 1).fill_(SOS_ID).type(torch.long).to(self._device)
             result = greedy_decode(self.model.decoder, encodings, seq)
