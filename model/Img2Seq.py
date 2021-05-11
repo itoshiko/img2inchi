@@ -1,5 +1,3 @@
-import time
-import math
 
 import torch
 from torch import Tensor
@@ -9,7 +7,8 @@ import torch.nn.functional as F
 from torch.nn.utils.rnn import pack_padded_sequence
 import numpy as np
 import torchvision
-from .one_hot import one_hot
+from model.TokenEmbedding import one_hot, TokenEmbedding
+from model.PositionalEncoding import PositionalEncodingNd
 
 device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
 
@@ -67,42 +66,6 @@ class EncoderCNN(nn.Module):
         # Flatten encoded_image
         out = out.view(batch_size, -1, dim_encoder)  # (batch_size, num_pixels, dim_encoder)
         return out
-
-
-class PositionalEncodingNd(nn.Module):
-    def __init__(self, d_pos: int, max_size: int, d_model: int):
-        """
-        Embedding the (absolute) positional encodings to some data
-
-        :param d_pos: the dimension of positional space
-        :param max_size: the max lenth of each positional dimension
-        :param d_model: the dimension of features at every position, or the dimension of the model
-        """
-        self.d_model = d_model
-        self.d_pos = d_pos
-        den = torch.exp(- torch.arange(0, d_model, 2 * d_pos) * math.log(10000) / d_model).unsqueeze(1)
-        pos = torch.arange(0, max_size).unsqueeze(0)
-        self.num = den.shape[0]
-        pos_embedding = torch.zeros((max_size, self.num))
-        pos_embedding[0::2, :] = torch.sin(den * pos)  # even indices
-        pos_embedding[1::2, :] = torch.cos(den * pos)  # odd  indices
-        self.register_buffer('pos_embedding', pos_embedding)
-
-    def forward(self, x: Tensor):
-        """
-        :param x: shape: (batch_size, d_model, (positional))
-        :return: the data after embedding positional encodings
-        """
-        for dim in range(self.d_pos):  # dim == 0; 1
-            prepad = dim * 2 * self.num  # 0; 256
-            postpad = self.d_model - (dim + 1) * 2 * self.num  # 256; 0
-            embed = self.pos_embedding[:, :x.shape[dim]]
-            embed = F.pad(embed, (0, 0, prepad, postpad))  # [512, 14]
-            shape = [1] + embed.shape[0] + [1] * dim + embed.shape[1] + [1] * (self.d_pos - dim + 1)
-            embed.view(shape)
-            x += embed  # [1, 512, 14, 1]; [1, 512, 1, 14]
-        return x
-
 
 class Attention(nn.Module):
     """
@@ -215,7 +178,7 @@ class DecoderWithAttention(nn.Module):
         preds = self.generator(self.dropout(hidden))  # (batch_size, vocab_size)
         return hidden, cell, preds
 
-    def forward(self, encodings, seqs):
+    def forward(self, encodings, seqs, seq_lenth):
         """
         Forward propagation.
 
@@ -247,7 +210,7 @@ class DecoderWithAttention(nn.Module):
 
         # We won't decode at the <end> position, since we've finished generating as soon as we generate <end>
         # So, decoding lengths are actual lengths - 1
-        decode_lengths = [len(seq) - 1 for seq in seqs]
+        decode_lengths = [l - 1 for l in seq_lenth]
 
         # Create tensors to hold word predicion scores and alphas
         predictions = torch.zeros(batch_size, max(decode_lengths), vocab_size).to(device)
@@ -314,9 +277,9 @@ class Img2Seq(nn.Module):
         """
         return self.decoder.decode_step(encodings, hidden, cell, seqs)
 
-    def forward(self, img, seqs):
+    def forward(self, img, seqs, seq_lenth):
         """
         Forward propagation.
         """
         encodings = self.encoder(img)
-        return self.decoder(encodings, seqs)
+        return self.decoder(encodings, seqs, seq_lenth)

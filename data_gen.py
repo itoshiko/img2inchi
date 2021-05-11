@@ -42,9 +42,8 @@ class Img2SeqDataset(Dataset):
         img_batch, seq_batch = list(zip(*data_batch))
         seq_lenth = [len(seq) for seq in seq_batch]
         seq_batch = pad_sequence(seq_batch, padding_value=self.vocab.PAD_ID)
-        seq_batch = seq_batch.transpose(0, 1)
-        encoded_seq_batch = one_hot(seq_batch, self.vocab.size)
-        return torch.stack(img_batch), encoded_seq_batch, seq_lenth
+        seq_batch = seq_batch.transpose(0, 1).contiguous()
+        return torch.stack(img_batch), seq_batch.long(), seq_lenth
 
 
 def get_dataLoader(dataset: Img2SeqDataset, batch_size: int=4, mode='Img2Seq'):

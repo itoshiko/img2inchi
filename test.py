@@ -6,14 +6,15 @@ import time, os
 from torchvision import models
 from pkg.utils.vocab import vocab
 
-BATCH_SIZE = 90
+BATCH_SIZE = 45
 EPOCHS = 5
 PAD_ID = 0
 SOS_ID = 1
 EOS_ID = 2
 
-root = os.getcwd()
-data_dir = 'data/prcd_data_small'
+root = './'
+data_dir = 'data/prcd_data/'
+load_weights = False
 
 device = 'cuda:0' if torch.cuda.is_available() else 'cpu'
 device_ids = range(torch.cuda.device_count())
@@ -27,9 +28,10 @@ transformer = tfm.Img2SeqTransformer(feature_size=None, extractor_name='resnet34
                                     tr_extractor=True, num_encoder_layers=6, num_decoder_layers=6,
                                     d_model=512, nhead=8, vocab_size=_vocab.size,
                                     dim_feedforward=1024, dropout=0.2)
-if os.path.isfile("model weights/transformer_weights.pth"):
-    print("Load the weights")
-    transformer.load_state_dict(torch.load("model weights/transformer_weights.pth"))
+if load_weights:
+    if os.path.isfile("model weights/transformer_weights.pth"):
+        print("Load the weights")
+        transformer.load_state_dict(torch.load("model weights/transformer_weights.pth"))
 
 
 def test_dataLoader():
@@ -42,7 +44,7 @@ def test_dataLoader():
     print(idx)
 
 def test_transformer():
-    data = Img2SeqDataset(root=root, data_dir=data_dir, img_dir="train", annotations_file="train_set_labels.csv")
+    data = Img2SeqDataset(root=root, data_dir=data_dir, img_dir="train", annotations_file="small_train_set_labels.csv")
     dataLoader = get_dataLoader(data, batch_size=BATCH_SIZE, mode='Transformer')
     model = tfm.Img2SeqTransformer(feature_size=(8, 16), extractor_name='resnet34', max_seq_len=200,
                                     tr_extractor=False, num_encoder_layers=6, num_decoder_layers=6,
@@ -51,9 +53,10 @@ def test_transformer():
     (img, seq) = next(iter(dataLoader))
     img = img.to(device)
     seq = seq.to(device)
-    scores = model(img, seq)
     print(seq[0, :])
+    scores = model(img, seq)
     print(scores)
+    assert torch.sum(scores != scores) == 0.0
 
 def train_epoch(model, train_iter, optimizer):
     model.train()
@@ -192,4 +195,4 @@ def num_param():
 
 
 if __name__ == '__main__':
-    test_train_transformer()
+    test_transformer()
