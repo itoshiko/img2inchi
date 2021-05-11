@@ -9,7 +9,8 @@ import torch.nn.functional as F
 from torch.nn.utils.rnn import pack_padded_sequence
 import numpy as np
 import torchvision
-from .one_hot import one_hot
+from model.one_hot import one_hot
+from model.PositionalEncoding import PositionalEncodingNd
 
 device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
 
@@ -67,42 +68,6 @@ class EncoderCNN(nn.Module):
         # Flatten encoded_image
         out = out.view(batch_size, -1, dim_encoder)  # (batch_size, num_pixels, dim_encoder)
         return out
-
-
-class PositionalEncodingNd(nn.Module):
-    def __init__(self, d_pos: int, max_size: int, d_model: int):
-        """
-        Embedding the (absolute) positional encodings to some data
-
-        :param d_pos: the dimension of positional space
-        :param max_size: the max lenth of each positional dimension
-        :param d_model: the dimension of features at every position, or the dimension of the model
-        """
-        self.d_model = d_model
-        self.d_pos = d_pos
-        den = torch.exp(- torch.arange(0, d_model, 2 * d_pos) * math.log(10000) / d_model).unsqueeze(1)
-        pos = torch.arange(0, max_size).unsqueeze(0)
-        self.num = den.shape[0]
-        pos_embedding = torch.zeros((max_size, self.num))
-        pos_embedding[0::2, :] = torch.sin(den * pos)  # even indices
-        pos_embedding[1::2, :] = torch.cos(den * pos)  # odd  indices
-        self.register_buffer('pos_embedding', pos_embedding)
-
-    def forward(self, x: Tensor):
-        """
-        :param x: shape: (batch_size, d_model, (positional))
-        :return: the data after embedding positional encodings
-        """
-        for dim in range(self.d_pos):  # dim == 0; 1
-            prepad = dim * 2 * self.num  # 0; 256
-            postpad = self.d_model - (dim + 1) * 2 * self.num  # 256; 0
-            embed = self.pos_embedding[:, :x.shape[dim]]
-            embed = F.pad(embed, (0, 0, prepad, postpad))  # [512, 14]
-            shape = [1] + embed.shape[0] + [1] * dim + embed.shape[1] + [1] * (self.d_pos - dim + 1)
-            embed.view(shape)
-            x += embed  # [1, 512, 14, 1]; [1, 512, 1, 14]
-        return x
-
 
 class Attention(nn.Module):
     """
