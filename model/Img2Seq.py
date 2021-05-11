@@ -1,5 +1,3 @@
-import time
-import math
 
 import torch
 from torch import Tensor
@@ -9,7 +7,7 @@ import torch.nn.functional as F
 from torch.nn.utils.rnn import pack_padded_sequence
 import numpy as np
 import torchvision
-from model.one_hot import one_hot
+from model.TokenEmbedding import one_hot, TokenEmbedding
 from model.PositionalEncoding import PositionalEncodingNd
 
 device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
