@@ -138,5 +138,3 @@ dmypy.json
 *.zip
 [0-9abcdef]/
 export_config.yaml
-
-./config/data_prepare.yaml
