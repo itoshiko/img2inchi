@@ -2,18 +2,23 @@ import click
 
 import pkg.preprocess.data_preprocess as prc
 
+from pkg.utils.vocab import build_vocabulary
+
 from pkg.utils.general import Config
 
 
 @click.command()
-@click.option('--config', default="config/data_prepare.yaml",
-              help='Path to config yaml for data preparation')
-@click.option('--root', default="E:/python_dev/img2inchi",
+@click.option('--root', default="./",
               help="Path to your project root")
-def main(config, root):
-    data_config = Config(config)
+@click.option('--pre_config', default="./config/data_prepare.yaml",
+              help='Path to config yaml for data preparation')
+@click.option('--vocab_config', default="./config/vocab_small.yaml",
+              help='Path to vocab yaml config')
+def main(root, pre_config, vocab_config):
+    data_config = Config([pre_config, vocab_config])
     origin_dir = data_config.origin_dir
     prcd_dir = data_config.prcd_dir
+    vocab_dir = data_config.vocab_dir
     VAL_SIZE = data_config.val_size
     TRAIN_SIZE = data_config.train_size
     SPLIT_DATA_SET = data_config.split_data_set
@@ -21,7 +26,7 @@ def main(config, root):
     PRC_IMG = data_config.prc_img
     data_set = prc.read_data_set(root=root, dir_name=origin_dir, file_name='train_labels.csv')
     if BUILD_VOCAB:
-        prc.build_vocabulary(root=root, inchi_list=data_set['InChI'].values)
+        build_vocabulary(root=root, vocab_dir=vocab_dir, inchi_list=data_set['InChI'].values)
     if SPLIT_DATA_SET:
         val_set, train_set = prc.train_val_split(root=root, dir_name=prcd_dir, data_set=data_set,
                                                  train_size=TRAIN_SIZE, val_size=VAL_SIZE)

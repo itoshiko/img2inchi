@@ -28,7 +28,7 @@ class Img2InchiTransformerModel(BaseModel):
         num_decoder_layers = self._config.transformer["num_decoder_layers"]
         d_model = self._config.transformer["d_model"]
         nhead = self._config.transformer["nhead"]
-        vocab_size = self._config.transformer["vocab_size"]
+        vocab_size = self._config.vocab_size
         if self._config.transformer["dim_feedforward"]:
             dim_feedforward = self._config.transformer["dim_feedforward"]
         else:

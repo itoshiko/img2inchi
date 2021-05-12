@@ -3,12 +3,11 @@ import numpy as np
 from .utils import join
 
 
-vocab_dir = 'vocabulary'
 PAD = '<PAD>'
 SOS = '<SOS>'
 EOS = '<EOS>'
 
-def build_vocabulary(root, inchi_list):
+def build_vocabulary(root, vocab_dir, inchi_list):
     import pickle
     from tqdm import tqdm
     tokens = [PAD, SOS, EOS]
@@ -62,11 +61,14 @@ def build_vocab(vocabulary: set, string: str, split_others: bool):
 
 
 class vocab():
-    def __init__(self, root):
+    def __init__(self, root, vocab_dir):
         '''
-        :param root: project root. we'll find the vocab files in root/vocabulary
+        we'll find the vocab files in root/vocab_dir
+        :param root: project root. 
+        :param vocab_dir: the vocabulary directory.
         '''
         self.root = root
+        self.vocab_dir = vocab_dir
         self.vocab_to_int, self.int_to_vocab = self.get_vocab()
         self.size = len(self.vocab_to_int)
         self.PAD_ID = self.__call__(PAD)
@@ -136,9 +138,9 @@ class vocab():
     def get_vocab(self):
         root = self.root
         import pickle
-        with open(join(root, vocab_dir, "vocab_to_int.pkl"), "rb") as f:
+        with open(join(root, self.vocab_dir, "vocab_to_int.pkl"), "rb") as f:
             vocab_to_int = pickle.load(f)
-        with open(join(root, vocab_dir, "int_to_vocab.pkl"), "rb") as f:
+        with open(join(root, self.vocab_dir, "int_to_vocab.pkl"), "rb") as f:
             int_to_vocab = pickle.load(f)
         return vocab_to_int, int_to_vocab
     
