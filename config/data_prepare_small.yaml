@@ -1,10 +1,10 @@
 origin_dir: 'data/origin'
-prcd_dir: 'data/prcd_data'
+prcd_dir: 'data/prcd_data_small'
 train_labels: 'train_labels.csv'
-val_set_labels: 'val_set_labels.csv'
-train_set_labels: 'train_set_labels.csv'
-val_size: 400000
-train_size: -1
+val_set_labels: 'small_val_set_labels.csv'
+train_set_labels: 'small_train_set_labels.csv'
+val_size: 20000
+train_size: 80000
 build_vocab: TRUE
 split_data_set: TRUE
 prc_img: TRUE
