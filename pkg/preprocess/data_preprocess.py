@@ -1,12 +1,7 @@
 import pandas as pd
 import numpy as np
-import pickle
-from tqdm import tqdm
-import cv2
-import os
 import threading
 from ..utils.utils import join, create_dirs
-from ..utils.vocab import build_vocabulary
 from .img_process import prc_img
 
 

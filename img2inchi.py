@@ -20,7 +20,7 @@ class Img2InchiModel(BaseModel):
     def getModel(self):
         img_w = self._config.img2seq['img_w']
         img_h = self._config.img2seq['img_h']
-        vocab_size = self._config.img2seq['vocab_size']
+        vocab_size = self._config.vocab_size
         dim_encoder = self._config.img2seq['dim_encoder']
         dim_decoder = self._config.img2seq['dim_decoder']
         dim_attention = self._config.img2seq['dim_attention']
@@ -29,7 +29,7 @@ class Img2InchiModel(BaseModel):
             dropout = self._config.img2seq['dropout']
         else:
             dropout = 0.5
-        model = Img2Seq(img_w, img_h, vocab_size, dim_encoder, dim_decoder, dim_attention, dim_embed, dropout=0.5)
+        model = Img2Seq(img_w, img_h, vocab_size, dim_encoder, dim_decoder, dim_attention, dim_embed, dropout=dropout)
         self.model = model
         return model
 
@@ -63,13 +63,13 @@ class Img2InchiModel(BaseModel):
         losses = 0
         train_loader = get_dataLoader(train_set, batch_size=batch_size, mode='Img2Seq')
 
-        for i, (img, seq, seq_lenth) in enumerate(train_loader):
+        for i, (img, seq) in enumerate(train_loader):
             # img = torch.FloatTensor(img)
             # seq = torch.LongTensor(seq)  # (N,)
             img = img.to(self._device)
-            seq = img.to(self._device)
+            seq = seq.to(self._device)
             seq_input = seq[:, :-1]
-            logits = self.model(img, seq_input, seq_lenth)
+            logits = self.model(img, seq_input)
             self.optimizer.zero_grad()
             seq_out = seq[:, 1:]
             loss = self.criterion(logits.reshape(-1, logits.shape[-1]), seq_out.reshape(-1))
@@ -101,11 +101,11 @@ class Img2InchiModel(BaseModel):
             prog = ProgressBar(nbatches)
             test_loader = get_dataLoader(test_set, batch_size=batch_size, mode='Img2Seq')
 
-            for i, (img, seq, seq_lenth) in enumerate(test_loader):
+            for i, (img, seq) in enumerate(test_loader):
                 img = img.to(self._device)
                 seq = seq.to(self._device)
                 seq_input = seq[:, :-1]
-                logits = self.model(img, seq_input, seq_lenth)
+                logits = self.model(img, seq_input)
                 seq_out = seq[:, 1:]
                 loss = self.criterion(logits.reshape(-1, logits.shape[-1]), seq_out.reshape(-1))
                 losses += loss.item()

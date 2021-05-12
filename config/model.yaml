@@ -4,19 +4,18 @@ transformer:
   extractor_name: 'resnet34'
   max_seq_len: 200
   tr_extractor: FALSE
-  num_encoder_layers: 6
-  num_decoder_layers: 6
+  num_encoder_layers: 3
+  num_decoder_layers: 3
   d_model: 512
   nhead: 8
-  vocab_size:
   dim_feedforward: 512
   dropout: 0.2
 img2seq:
   img_w: 512
   img_h: 256
-  vocab_size:
   dim_encoder: 512
-  dim_decoder: 512
+  dim_decoder: 256
   dim_attention: 512
-  dim_embed: 512
+  dim_embed: 
   dropout: 0.1
+vocab_size:

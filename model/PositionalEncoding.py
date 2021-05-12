@@ -19,24 +19,24 @@ class PositionalEncodingNd(nn.Module):
         den = torch.exp(- torch.arange(0, d_model, 2 * d_pos) * math.log(10000) / d_model)
         self.num = len(den)
         pos = torch.arange(0, max_size).reshape(max_size, 1)
+        # pos_embedding: shape(max_size, d_model)
         pos_embedding = torch.zeros(max_size, 2 * self.num)
         pos_embedding[:, 0::2] = torch.sin(pos * den)
         pos_embedding[:, 1::2] = torch.cos(pos * den)
-
         self.register_buffer('pos_embedding', pos_embedding)
 
-    def forward(self, token_embedding: Tensor):
+    def forward(self, x: Tensor):
         """
-        :param token_embedding: shape ((positional), batch_size, d_model)
+        :param token_embedding: shape (batch_size, (positional), d_model)
         :return: the data after embedding positional encodings
         """
-        input_shape = token_embedding.shape
+        input_shape = x.shape
         for dim in range(self.d_pos):  # dim == 0; 1
             prepad = dim * 2 * self.num  # 0; 256
             postpad = self.d_model - (dim + 1) * 2 * self.num  # 256; 0
-            embed = self.pos_embedding[:input_shape[dim], :]
+            embed = self.pos_embedding[:input_shape[dim + 1], :]
             embed = F.pad(embed, (prepad, postpad, 0, 0))  # [512, 14]
-            shape = [1] * dim + [embed.shape[0]] + [1] * (self.d_pos - dim) + [embed.shape[1]]
+            shape = [1] * (dim + 1) + [embed.shape[0]] + [1] * (self.d_pos - dim - 1) + [self.d_model]
             embed = embed.view(shape)
-            token_embedding += embed  # [1, 512, 14, 1]; [1, 512, 1, 14]
-        return token_embedding
+            x += embed  # [1, 512, 14, 1]; [1, 512, 1, 14]
+        return x
