@@ -1,6 +1,6 @@
 import os
 import numpy as np
-import torch
+import torch.nn as nn
 
 try:
     import cv2
@@ -35,3 +35,12 @@ def read_img(img_id, root):
     else:
         img = Image.open(img_path)
     return img
+
+def num_param(model: nn.Module):
+    num = 0
+    for p in model.parameters():
+        n = 1
+        for d in p.shape:
+            n *= d
+        num += n
+    return num

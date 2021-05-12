@@ -75,7 +75,8 @@ class TransformerDecoder(nn.Module):
 
     def forward(self, tgt: Tensor, memory: Tensor, 
                 tgt_mask: Optional[Tensor] = None, memory_mask: Optional[Tensor] = None, 
-                tgt_key_padding_mask: Optional[Tensor] = None, memory_key_padding_mask: Optional[Tensor] = None) -> Tensor:
+                tgt_key_padding_mask: Optional[Tensor] = None, memory_key_padding_mask: Optional[Tensor] = None,
+                one_step: bool=False, decode_mem_list: Optional[list] = None) -> Tensor:
         """Pass the inputs (and mask) through the decoder layer in turn.
 
         Args:
@@ -90,10 +91,15 @@ class TransformerDecoder(nn.Module):
             see the docs in Transformer class.
         """
         output = tgt
-        for mod in self.layers:
-            output = mod(output, memory, 
-                        tgt_mask=tgt_mask, tgt_paddingg_mask=tgt_key_padding_mask,
-                        memory_mask=memory_mask, memory_padding_mask=memory_key_padding_mask)
+        for i in range(self.num_layers):
+            mod = self.layers[i]
+            if one_step:
+                output, decode_mem_list[i] = mod(
+                    output, memory, 
+                    tgt_mask=tgt_mask, tgt_paddingg_mask=tgt_key_padding_mask,
+                    memory_mask=memory_mask, memory_padding_mask=memory_key_padding_mask,
+                    one_step=one_step, decode_mem=decode_mem_list[i]
+                )
 
         if self.norm is not None:
             output = self.norm(output)
