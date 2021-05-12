@@ -92,7 +92,7 @@ class Img2InchiTransformerModel(BaseModel):
 
         # evaluation
         scores = self.evaluate(val_set)
-        score = scores["perplexity"]
+        score = scores["Evaluate Loss"]
         lr_schedule.update(score=score)
 
         return score
