@@ -31,8 +31,7 @@ def read_img(img_id, root):
     img_path = get_img_path(img_id, root)
     # img = cv2.imread(img_path, cv2.IMREAD_GRAYSCALE)
     if has_cv2:
-        img = cv2.imread(img_path)
+        img = cv2.imread(img_path, cv2.IMREAD_GRAYSCALE)
     else:
         img = Image.open(img_path)
-        img = np.array(img.convert('RGB'))
     return img

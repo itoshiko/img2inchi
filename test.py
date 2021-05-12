@@ -14,6 +14,7 @@ EOS_ID = 2
 
 root = './'
 data_dir = 'data/prcd_data/'
+vocab_dir = 'vocabulary/'
 load_weights = False
 
 device = 'cuda:0' if torch.cuda.is_available() else 'cpu'
@@ -21,7 +22,7 @@ device_ids = range(torch.cuda.device_count())
 multi_gpu = True if len(device_ids) > 1 else False
 
 pretrained_ResNet101_path = "model weights/ResNet101.pth"
-_vocab = vocab(root)
+_vocab = vocab(root, vocab_dir)
 
 loss_fn = torch.nn.CrossEntropyLoss(ignore_index=PAD_ID)
 transformer = tfm.Img2SeqTransformer(feature_size=None, extractor_name='resnet34', max_seq_len=200,
@@ -35,12 +36,12 @@ if load_weights:
 
 
 def test_dataLoader():
-    data = Img2SeqDataset(root=root, data_dir=data_dir, img_dir="train", annotations_file="train_set_labels.csv")
-    dataLoader = get_dataLoader(data, batch_size=4, mode='Img2Seq')
-    idx, (img, seq, seq_l) = next(enumerate(dataLoader))
+    data = Img2SeqDataset(root=root, data_dir=data_dir, img_dir="train", 
+                        annotations_file="small_train_set_labels.csv", vocab=_vocab)
+    dataLoader = get_dataLoader(data, batch_size=4, mode='Transformer')
+    idx, (img, seq) = next(enumerate(dataLoader))
     print(img.shape)
-    print(seq[0][7], seq.is_contiguous())
-    print(seq_l)
+    print(seq[0][7])
     print(idx)
 
 def test_transformer():
@@ -195,4 +196,4 @@ def num_param():
 
 
 if __name__ == '__main__':
-    test_transformer()
+    test_dataLoader()

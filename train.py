@@ -24,18 +24,20 @@ def main(data, vocab, training, model, output):
     dir_output = output
     config = Config([data, vocab, training, model])
     config.save(dir_output)
-    my_vocab = vocabulary(config.path_train_root)
-    config.transformer["vocab_size"] = my_vocab.size
+    my_vocab = vocabulary(root=config.path_train_root, vocab_dir=config.vocab_dir)
+    config.vocab_size = my_vocab.size
 
     # Load datasets
     train_set = Img2SeqDataset(root=config.path_train_root,
                                data_dir=config.path_train_data_dir,
                                img_dir=config.path_train_img_dir,
-                               annotations_file=config.train_annotations_file)
+                               annotations_file=config.train_annotations_file,
+                               vocab=my_vocab)
     val_set = Img2SeqDataset(root=config.path_val_root,
                                data_dir=config.path_val_data_dir,
                                img_dir=config.path_val_img_dir,
-                               annotations_file=config.val_annotations_file)
+                               annotations_file=config.val_annotations_file,
+                               vocab=my_vocab)
 
     # Define learning rate schedule
     n_batches_epoch = ((len(train_set) + config.batch_size - 1) // config.batch_size)

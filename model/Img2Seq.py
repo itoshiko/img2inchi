@@ -11,6 +11,7 @@ from model.TokenEmbedding import one_hot, TokenEmbedding
 from model.PositionalEncoding import PositionalEncodingNd
 
 device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
+PAD_ID = 0
 
 
 def getWH(img_w, img_h):
@@ -60,8 +61,8 @@ class EncoderCNN(nn.Module):
         return:
             out: [batch, W/2/2/2-2, H/2/2/2-2, 512]
         """
-        out = self.positionalEncoding(self.cnn(img))
-        out = out.permute(0, 2, 3, 1)  # (batch_size, encoded_image_size, encoded_image_size, num_channel)
+        out = self.cnn(img).permute(0, 2, 3, 1)  # (batch_size, encoded_image_size, encoded_image_size, num_channel)
+        out = self.positionalEncoding(out)
         batch_size, _, _, dim_encoder = out.shape
         # Flatten encoded_image
         out = out.view(batch_size, -1, dim_encoder)  # (batch_size, num_pixels, dim_encoder)
@@ -121,11 +122,15 @@ class DecoderWithAttention(nn.Module):
         self.dim_encoder = dim_encoder
         self.dim_decoder = dim_decoder
         self.dim_attention = dim_attention
+        if not dim_embed:
+            dim_embed = vocab_size
+            self.embed = one_hot(vocab_size)
+        else:
+            self.embed = TokenEmbedding(vocab_size=vocab_size, emb_size=dim_embed)
         self.vocab_size = vocab_size
         self.dropout = dropout
 
         self.attention = Attention(dim_encoder, dim_decoder, dim_attention)  # attention network
-        self.embed = one_hot(vocab_size)
         self.dropout = nn.Dropout(p=self.dropout)
         self.lstm = nn.LSTMCell(dim_embed + dim_encoder, dim_decoder, bias=True)  # decoding LSTMCell
         self.init_h = nn.Linear(dim_encoder, dim_decoder)  # linear layer to find initial hidden state of LSTMCell
@@ -139,7 +144,7 @@ class DecoderWithAttention(nn.Module):
         """
         Initializes some parameters with values from the uniform distribution, for easier convergence.
         """
-        self.embedding.weight.data.uniform_(-0.1, 0.1)
+        # self.embedding.weight.data.uniform_(-0.1, 0.1)
         self.generator.bias.data.fill_(0)
         self.generator.weight.data.uniform_(-0.1, 0.1)
 
@@ -178,7 +183,7 @@ class DecoderWithAttention(nn.Module):
         preds = self.generator(self.dropout(hidden))  # (batch_size, vocab_size)
         return hidden, cell, preds
 
-    def forward(self, encodings, seqs, seq_lenth):
+    def forward(self, encodings, seqs):
         """
         Forward propagation.
 
@@ -195,6 +200,10 @@ class DecoderWithAttention(nn.Module):
         # Flatten image
         encodings = encodings.view(batch_size, -1, dim_encoder)  # (batch_size, num_pixels, dim_encoder)
 
+        # compute the batch size for each step
+        max_len = seqs.shape[1]
+        batch_step = torch.sum(seqs != PAD_ID, dim=0).long()
+
         # encode the sequences by one-hot
         seqs = self.embed(seqs)
 
@@ -206,21 +215,17 @@ class DecoderWithAttention(nn.Module):
         '''
 
         # Initialize LSTM state
-        h, c = self.init_hidden_state(encodings)  # (batch_size, dim_decoder)
-
-        # We won't decode at the <end> position, since we've finished generating as soon as we generate <end>
-        # So, decoding lengths are actual lengths - 1
-        decode_lengths = [l - 1 for l in seq_lenth]
+        h, c = self.init_hidden_states(encodings)  # (batch_size, dim_decoder)
 
         # Create tensors to hold word predicion scores and alphas
-        predictions = torch.zeros(batch_size, max(decode_lengths), vocab_size).to(device)
+        predictions = torch.zeros(batch_size, max_len, vocab_size).to(device)
 
         # At each time-step, decode by
         # attention-weighing the encoder's output based on the decoder's previous hidden state output
         # then generate a new word in the decoder with the previous word and the attention weighted encoding
-        for t in range(max(decode_lengths)):
-            batch_size_t = sum([l > t for l in decode_lengths])
-            h, c, preds = self.decode_step(encodings, h[:batch_size_t], c[:batch_size_t],
+        for t in range(max_len):
+            batch_size_t = batch_step[t]
+            h, c, preds = self.decode_step(encodings[:batch_size_t], h[:batch_size_t], c[:batch_size_t],
                                            seqs[:batch_size_t, t, :])
             predictions[:batch_size_t, t, :] = preds
 
@@ -242,10 +247,13 @@ class Img2Seq(nn.Module):
         :param dim_embed: dimension of embeded token
         :param dropout: dropout
         """
+        super(Img2Seq, self).__init__()
         if not dim_encoder:
             dim_encoder = 512
-        self.encoder = EncoderCNN(img_w, img_h, dim_encoder)
-        self.decoder = DecoderWithAttention(dim_attention, dim_embed, dim_decoder, dim_encoder, vocab_size, dropout)
+        self.encoder = EncoderCNN(img_w=img_w, img_h=img_h, dim_encoder=dim_encoder)
+        self.decoder = DecoderWithAttention(dim_encoder=dim_encoder, dim_decoder=dim_decoder, 
+                                            dim_attention=dim_attention, dim_embed=dim_embed, 
+                                            vocab_size=vocab_size, dropout=dropout)
 
     def encode(self, img):
         """
@@ -277,9 +285,9 @@ class Img2Seq(nn.Module):
         """
         return self.decoder.decode_step(encodings, hidden, cell, seqs)
 
-    def forward(self, img, seqs, seq_lenth):
+    def forward(self, img, seqs):
         """
         Forward propagation.
         """
         encodings = self.encoder(img)
-        return self.decoder(encodings, seqs, seq_lenth)
+        return self.decoder(encodings, seqs)
