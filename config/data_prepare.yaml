@@ -1,7 +1,7 @@
 origin_dir: 'data/origin'
 prcd_dir: 'data/prcd_data'
-val_size: 10000
+val_size: 100000
 train_size: -1
 build_vocab: TRUE
 split_data_set: FALSE
-prc_img: TRUE
+prc_img: False
