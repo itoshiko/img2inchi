@@ -23,7 +23,7 @@ class Img2SeqDataset(Dataset):
         img_id = self.img_labels.iloc[i, 0]
         seq = self.img_labels.iloc[i, 1]
         # img = self.img_trans(img).squeeze(0)
-        img = self.img_trans(read_img(img_id, self.img_dir))
+        img = self.img_trans(read_img(root=self.img_dir, img_id=img_id, mode='GRAY'))
         seq = Tensor(seq).long()
         return img, seq
 
