@@ -181,18 +181,7 @@ def predict(img, model, max_len=200):
             break
     return _vocab.decode(seq)
 
-def num_param():
-    transformer = tfm.Img2SeqTransformer(feature_size=None, extractor_name='resnet34', max_seq_len=200,
-                                    tr_extractor=False, num_encoder_layers=6, num_decoder_layers=6,
-                                    d_model=512, nhead=8, vocab_size=_vocab.size,
-                                    dim_feedforward=1024, dropout=0.2)
-    num = 0
-    for p in transformer.parameters():
-        n = 1
-        for d in p.shape:
-            n *= d
-        num += n
-    print(num)
+
 
 
 if __name__ == '__main__':

@@ -1,7 +1,7 @@
 import numpy as np
-import cv2
-from ..utils.utils import join
+from pkg.utils.utils import join, read_img, save_img
 
+import cv2
 
 def pad_resize(img, config):
     h, w = img.shape
@@ -20,9 +20,7 @@ def pad_resize(img, config):
 def prc_img(img_id, source_root="train", target_root="prcd_data", config=None):
     if config is None:
         config = {"img_height": 256, "img_width": 512, "threshold": 50}
-    source_file_path = join(source_root, img_id[0], img_id[1], img_id[2], f'{img_id}.png')
-    target_file_path = join(target_root, img_id[0], img_id[1], img_id[2], f'{img_id}.png')
-    img = 255 - cv2.imread(source_file_path, cv2.IMREAD_GRAYSCALE)
+    img = 255 - read_img(root=source_root, img_id=img_id, mode='GRAY')
 
     # rotate counter clockwise to get horizontal images
     h, w = img.shape
@@ -32,7 +30,8 @@ def prc_img(img_id, source_root="train", target_root="prcd_data", config=None):
     img = (img / img.max() * 255).astype(np.uint8)
     img[np.where(img > config["threshold"])] = 255
     img[np.where(img <= config["threshold"])] = 0
-    cv2.imwrite(target_file_path, img, [int(cv2.IMWRITE_PNG_COMPRESSION), 9])
+    save_img(img=img, root=target_root, img_id=img_id)
+    
     '''
     if DEBUG:
         cv2.namedWindow("Image")

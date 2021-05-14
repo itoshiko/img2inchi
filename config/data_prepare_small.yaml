@@ -5,10 +5,10 @@ val_set_labels: 'small_val_set_labels.csv'
 train_set_labels: 'small_train_set_labels.csv'
 val_size: 20000
 train_size: 80000
-build_vocab: TRUE
-split_data_set: TRUE
-prc_img: TRUE
+build_vocab: True
+split_data_set: True
+prc_img: True
 img_width: 512
 img_height: 256
 threshold: 50
-threads: 16
+num_workers: 12

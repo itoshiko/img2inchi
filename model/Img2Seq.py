@@ -97,8 +97,7 @@ class Attention(nn.Module):
         att1 = self.encoder_att(encodings)  # (batch_size, num_pixels, dim_attention)
         att2 = self.decoder_att(hidden)  # (batch_size, dim_attention)
         att = self.full_att(self.relu(att1 + att2.unsqueeze(1))).squeeze(2)  # (batch_size, num_pixels)
-        alpha = self.softmax(att)  # (batch_size, num_pixels)
-        attention_weighted_encodings = (encodings * alpha.unsqueeze(2)).sum(dim=1)  # (batch_size, dim_encoder)
+        attention_weighted_encodings = (encodings * self.softmax(att).unsqueeze(2)).sum(dim=1)  # (batch_size, dim_encoder)
         return attention_weighted_encodings
 
 
@@ -224,10 +223,12 @@ class DecoderWithAttention(nn.Module):
         # attention-weighing the encoder's output based on the decoder's previous hidden state output
         # then generate a new word in the decoder with the previous word and the attention weighted encoding
         for t in range(max_len):
+            print(t)
             batch_size_t = batch_step[t]
             h, c, preds = self.decode_step(encodings[:batch_size_t], h[:batch_size_t], c[:batch_size_t],
                                            seqs[:batch_size_t, t, :])
             predictions[:batch_size_t, t, :] = preds
+            del preds
 
         return predictions
 

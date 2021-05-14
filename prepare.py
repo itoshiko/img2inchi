@@ -30,27 +30,35 @@ def main(root, pre_config, vocab_config):
     img_width = data_config.img_width
     img_height = data_config.img_height
     threshold = data_config.threshold
-    num_threads = data_config.threads
+    num_workers = data_config.num_workers
     data_set = prc.read_data_set(root=root, dir_name=origin_dir, file_name=train_labels)
     if BUILD_VOCAB:
-        build_vocabulary(root=root, vocab_dir=vocab_dir, inchi_list=data_set['InChI'].values)
+        print('Build the vocabulary')
+        vocab_to_int, _ = build_vocabulary(root=root, vocab_dir=vocab_dir, inchi_list=data_set['InChI'].values)
+        print(f'The vocabulary size is {len(vocab_to_int)}')
+        del vocab_to_int
     if SPLIT_DATA_SET:
+        print('Split the training set and validation set')
         _config = {"val_set_labels": val_set_labels, "train_set_labels": train_set_labels}
         val_set, train_set = prc.train_val_split(root=root, dir_name=prcd_dir, data_set=data_set,
                                                  train_size=TRAIN_SIZE, val_size=VAL_SIZE, config=_config)
     else:
         val_set = prc.read_data_set(root=root, dir_name=prcd_dir, file_name=val_set_labels)
         train_set = prc.read_data_set(root=root, dir_name=prcd_dir, file_name=train_set_labels)
+    print("Training set's info:")
     print(train_set.info())
+    print("Validation set's info:")
     print(val_set.info())
     if PRC_IMG:
         train_img_list = train_set['image_id'].values
         val_img_list = val_set['image_id'].values
         __config = {"img_width": img_width, "img_height": img_height, "threshold": threshold}
+        print('Preprocess the images of training set')
         prc.prc_imgs(config=__config, root=root, origin_dir_name=origin_dir, prcd_dir_name=prcd_dir,
-                     name='train', img_list=train_img_list, num_threads=num_threads)
+                     name='train', img_list=train_img_list, num_workers=num_workers)
+        print('Preprocess the images of validation set')
         prc.prc_imgs(config=__config, root=root, origin_dir_name=origin_dir, prcd_dir_name=prcd_dir,
-                     name='validate', img_list=val_img_list, num_threads=num_threads)
+                     name='validate', img_list=val_img_list, num_workers=num_workers)
 
 
 if __name__ == "__main__":
