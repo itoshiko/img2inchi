@@ -5,7 +5,7 @@ import torch.nn.functional as F
 from torch import Tensor
 
 class PositionalEncodingNd(nn.Module):
-    def __init__(self, d_pos: int, max_size: int, d_model: int):
+    def __init__(self, d_pos: int, max_size: int, d_model: int, dropout: int=0.1):
         """
         Embedding the (absolute) positional encodings to some data
 
@@ -24,6 +24,7 @@ class PositionalEncodingNd(nn.Module):
         pos_embedding[:, 0::2] = torch.sin(pos * den)
         pos_embedding[:, 1::2] = torch.cos(pos * den)
         self.register_buffer('pos_embedding', pos_embedding)
+        self.dropout = nn.Dropout(dropout)
 
     def forward(self, x: Tensor):
         """
@@ -38,5 +39,5 @@ class PositionalEncodingNd(nn.Module):
             embed = F.pad(embed, (prepad, postpad, 0, 0))  # [512, 14]
             shape = [1] * (dim + 1) + [embed.shape[0]] + [1] * (self.d_pos - dim - 1) + [self.d_model]
             embed = embed.view(shape)
-            x += embed  # [1, 512, 14, 1]; [1, 512, 1, 14]
-        return x
+            x = x + embed  # [1, 512, 14, 1]; [1, 512, 1, 14]
+        return self.dropout(x)
