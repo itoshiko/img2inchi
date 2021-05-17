@@ -1,4 +1,5 @@
 import math
+from typing import Tuple
 import torch
 import torch.nn as nn
 import torch.nn.functional as F
@@ -26,16 +27,18 @@ class PositionalEncodingNd(nn.Module):
         self.register_buffer('pos_embedding', pos_embedding)
         self.dropout = nn.Dropout(dropout)
 
-    def forward(self, x: Tensor):
+    def forward(self, x: Tensor, pos: Tuple[int]=None):
         """
         :param token_embedding: shape (batch_size, (positional), d_model)
         :return: the data after embedding positional encodings
         """
+        if pos is None:
+            pos = tuple([0] * self.d_pos)
         input_shape = x.shape
         for dim in range(self.d_pos):  # dim == 0; 1
             prepad = dim * 2 * self.num  # 0; 256
             postpad = self.d_model - (dim + 1) * 2 * self.num  # 256; 0
-            embed = self.pos_embedding[:input_shape[dim + 1], :]
+            embed = self.pos_embedding[pos[dim]:pos[dim] + input_shape[dim + 1], :]
             embed = F.pad(embed, (prepad, postpad, 0, 0))  # [512, 14]
             shape = [1] * (dim + 1) + [embed.shape[0]] + [1] * (self.d_pos - dim - 1) + [self.d_model]
             embed = embed.view(shape)
