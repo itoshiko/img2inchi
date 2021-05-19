@@ -38,9 +38,7 @@ def create_data_dirs(root, dir_name, name):
     data_rt = join(root, dir_name, name)
     create_dirs(data_rt)
     for d1 in l:
-        create_dirs(data_rt, d1)
         for d2 in l:
-            create_dirs(data_rt, d1, d2)
             for d3 in l:
                 create_dirs(data_rt, d1, d2, d3)
     return data_rt

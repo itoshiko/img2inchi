@@ -1,3 +1,4 @@
+from torch.nn.functional import batch_norm
 import model.Transformer as tfm
 import torch
 import torch.nn as nn
@@ -6,7 +7,7 @@ import time, os
 from torchvision import models
 from pkg.utils.vocab import vocab
 
-BATCH_SIZE = 45
+BATCH_SIZE = 145
 EPOCHS = 5
 PAD_ID = 0
 SOS_ID = 1
@@ -45,19 +46,39 @@ def test_dataLoader():
     print(idx)
 
 def test_transformer():
-    data = Img2SeqDataset(root=root, data_dir=data_dir, img_dir="train", annotations_file="small_train_set_labels.csv")
+    data = Img2SeqDataset(root=root, data_dir=data_dir, img_dir="train", annotations_file="small_train_set_labels.csv", vocab=_vocab)
     dataLoader = get_dataLoader(data, batch_size=BATCH_SIZE, mode='Transformer')
     model = tfm.Img2SeqTransformer(feature_size=(8, 16), extractor_name='resnet34', max_seq_len=200,
                                     tr_extractor=False, num_encoder_layers=6, num_decoder_layers=6,
-                                    d_model=512, nhead=8, vocab_size=data.vocab.size)
+                                    d_model=512, nhead=8, vocab_size=_vocab.size, dropout=0.0)
     model = model.to(device)
+    model.eval()
     (img, seq) = next(iter(dataLoader))
     img = img.to(device)
     seq = seq.to(device)
-    print(seq[0, :])
-    scores = model(img, seq)
+    start_t = time.time()
+    with torch.no_grad():
+        memory = model.encode(img)
+        decode_mem_list = model.init_decode_mem_list(memory)
+        s = torch.zeros((BATCH_SIZE, 1, _vocab.size)).to(device)
+        for i in range(seq.shape[1] - 1):
+            tgt_padding_mask = seq[:, :i + 1] == PAD_ID
+            s = torch.cat((s, model.decode_step(seq[:, i], decode_mem_list, i, tgt_padding_mask=tgt_padding_mask)), dim=1)
+        s = s[:, 1:, :]
+    end_t = time.time()
+    del decode_mem_list
+    model.clear_cache()
+    print(f"time: {end_t - start_t}")
+    start_t = time.time()
+    with torch.no_grad():
+        scores = model(img, seq[:, :-1])
+    end_t = time.time()
+    print(f"time: {end_t - start_t}")
+    '''
     print(scores)
     assert torch.sum(scores != scores) == 0.0
+    '''
+    print(torch.max(scores - s))
 
 def train_epoch(model, train_iter, optimizer):
     model.train()
@@ -185,4 +206,4 @@ def predict(img, model, max_len=200):
 
 
 if __name__ == '__main__':
-    test_dataLoader()
+    test_transformer()

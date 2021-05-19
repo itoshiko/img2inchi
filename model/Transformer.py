@@ -1,21 +1,19 @@
-import math
 from typing import Optional, Tuple
 
 import torch
 import torch.nn as nn
 import torch.nn.functional as F
 from torch import Tensor
-from torch.nn import Dropout, LayerNorm, Linear, Softmax
-from torch.nn.modules import padding
+from torch.nn import Dropout, LayerNorm, Linear
 from torchvision import models
 
-from model.MultiHeadedAttention import MultiHeadedAttention, clones
+from model.MultiHeadedAttention import MultiHeadedAttention, multiLinear, clones
 from model.PositionalEncoding import PositionalEncodingNd
 from model.TokenEmbedding import TokenEmbedding
 
+
 PAD_ID = 0
 pretrained = "model weights"
-
 
 
 class TransformerEncoder(nn.Module):
@@ -76,7 +74,7 @@ class TransformerDecoder(nn.Module):
     def forward(self, tgt: Tensor, memory: Tensor, 
                 tgt_mask: Optional[Tensor] = None, memory_mask: Optional[Tensor] = None, 
                 tgt_key_padding_mask: Optional[Tensor] = None, memory_key_padding_mask: Optional[Tensor] = None,
-                one_step: bool=False, decode_mem_list: Optional[list] = None) -> Tensor:
+                decode_mem_list: Optional[list] = None) -> Tensor:
         """Pass the inputs (and mask) through the decoder layer in turn.
 
         Args:
@@ -93,19 +91,30 @@ class TransformerDecoder(nn.Module):
         output = tgt
         for i in range(self.num_layers):
             mod = self.layers[i]
-            if one_step:
-                output, decode_mem_list[i] = mod(
-                    output, memory, 
-                    tgt_mask=tgt_mask, tgt_paddingg_mask=tgt_key_padding_mask,
-                    memory_mask=memory_mask, memory_padding_mask=memory_key_padding_mask,
-                    one_step=one_step, decode_mem=decode_mem_list[i]
-                )
-
+            decode_mem = decode_mem_list[i] if decode_mem_list is not None else None
+            output = mod(
+                output, memory, 
+                tgt_mask=tgt_mask, tgt_paddingg_mask=tgt_key_padding_mask,
+                memory_mask=memory_mask, memory_padding_mask=memory_key_padding_mask,
+                decode_mem=decode_mem
+            )
+            if decode_mem_list is not None:
+                decode_mem_list[i] = (mod.self_attn_memory, mod.src_attn_memory)
+        
         if self.norm is not None:
             output = self.norm(output)
 
         return output
+    
+    def init_decode_mem_list(self, memory: Tensor):
+        decode_mem_list = []
+        for i in range(self.num_layers):
+            decode_mem_list.append(self.layers[i].init_decode_memory(memory))
+        return decode_mem_list
 
+    def clear_cache(self):
+        for i in range(self.num_layers):
+            self.layers[i].clear_cache()
 
 class EncoderLayer(nn.Module):
     '''
@@ -113,7 +122,7 @@ class EncoderLayer(nn.Module):
     '''
     def __init__(self, d_model: int, nhead: int, dim_feedforward: int=2048, dropout: float=0.1, activation: str="relu"):
         super(EncoderLayer, self).__init__()
-        self.self_attn = MultiHeadedAttention(d_model, nhead)
+        self.self_attn = MultiHeadedAttention(d_model=d_model, nhead=nhead, dropout=dropout)
         # Implementation of Feedforward model
         self.linear1 = Linear(d_model, dim_feedforward)
         self.dropout = Dropout(dropout)
@@ -154,8 +163,16 @@ class EncoderLayer(nn.Module):
 class DecoderLayer(nn.Module):
     def __init__(self, d_model, nhead, dim_feedforward=2048, dropout=0.1, activation="relu"):
         super(DecoderLayer, self).__init__()
-        self.self_attn = MultiHeadedAttention(d_model, nhead)
-        self.src_attn = MultiHeadedAttention(d_model, nhead)
+        self.self_attn = MultiHeadedAttention(d_model=d_model, nhead=nhead, dropout=dropout)
+        self.src_attn = MultiHeadedAttention(d_model=d_model, nhead=nhead, dropout=dropout)
+
+        # (tgt, tgt, tgt)
+        self.self_attn_linears = multiLinear(d_model=d_model, num=3)
+        # (tgt, memory, memory)
+        self.src_attn_linears = multiLinear(d_model=d_model, num=3)
+        self.self_attn_memory = None
+        self.src_attn_memory = None
+
         # Implementation of Feedforward model
         self.linear1 = Linear(d_model, dim_feedforward)
         self.dropout = Dropout(dropout)
@@ -177,12 +194,29 @@ class DecoderLayer(nn.Module):
 
     def forward(self, tgt: Tensor, memory: Tensor, 
                 tgt_mask: Optional[Tensor] = None, tgt_paddingg_mask: Optional[Tensor] = None, 
-                memory_mask: Optional[Tensor] = None, memory_padding_mask: Optional[Tensor] = None) -> Tensor:
-        
-        tgt2 = self.self_attn(tgt, tgt, tgt, pos_mask=tgt_mask, padding_mask=tgt_paddingg_mask)
+                memory_mask: Optional[Tensor] = None, memory_padding_mask: Optional[Tensor] = None,
+                decode_mem: Optional[list] = None) -> Tensor:
+        '''
+        :param tgt: target. shape: (barch_size, max_len, d_model)
+        '''
+        if decode_mem is not None:
+            mem1, mem2 = decode_mem
+
+        q1, k1, v1 = self.self_attn_linears(tgt, tgt, tgt)
+        if decode_mem is not None:
+            k1, v1 = [_cat((x, y), dim=1) for x, y in zip(mem1, [k1, v1])]
+        self.self_attn_memory = [k1, v1]
+        tgt2 = self.self_attn(q1, k1, v1, pos_mask=tgt_mask, padding_mask=tgt_paddingg_mask)
+
         tgt = tgt + self.dropout1(tgt2)
         tgt = self.norm1(tgt)
-        tgt2 = self.src_attn(tgt, memory, memory, pos_mask=memory_mask, padding_mask=memory_padding_mask)
+
+        q, k, v = self.src_attn_linears(tgt, memory, memory)
+        if decode_mem is not None:
+            k, v = [_cat((x, y), dim=1) for x, y in zip(mem2, [k, v])]
+        self.src_attn_memory = [k, v]
+        tgt2 = self.src_attn(q, k, v, pos_mask=memory_mask, padding_mask=memory_padding_mask)
+
         tgt = tgt + self.dropout2(tgt2)
         tgt = self.norm2(tgt)
         tgt2 = self.linear2(self.dropout(self.activation(self.linear1(tgt))))
@@ -190,6 +224,12 @@ class DecoderLayer(nn.Module):
         tgt = self.norm3(tgt)
         return tgt
 
+    def clear_cache(self):
+        self.self_attn_memory = None
+        self.src_attn_memory = None
+
+    def init_decode_memory(self, memory: Tensor):
+        return ([None, None], self.src_attn_linears(None, memory, memory)[1:])
 
 class FeaturesExtractor(nn.Module):
     def __init__(self, num_features: int=512, output_size: Tuple[int, int]=(16, 32), 
@@ -244,12 +284,11 @@ class Img2SeqTransformer(nn.Module):
 
         self.generator = Linear(d_model, vocab_size)
         self.seq_emb = TokenEmbedding(vocab_size, d_model)
-        self.positional_encoding_seq = PositionalEncodingNd(d_pos=1, max_size=max_seq_len, d_model=d_model)
+        self.positional_encoding_seq = PositionalEncodingNd(d_pos=1, max_size=max_seq_len, d_model=d_model, dropout=dropout)
 
     def forward(self, img: Tensor, seq: Tensor):
         memory = self.encode(img)
-        outs = self.decode(seq, memory)
-        return self.generator(outs)
+        return self.decode(seq, memory)
 
     def encode(self, img: Tensor):
         '''
@@ -264,8 +303,31 @@ class Img2SeqTransformer(nn.Module):
         seq_emb = self.positional_encoding_seq(self.seq_emb(seq))
         tgt_mask = self.generate_square_subsequent_mask(seq.shape[1], seq.device)
         tgt_padding_mask = seq == PAD_ID
-        return self.transformer_decoder(tgt=seq_emb, memory=memory, tgt_mask=tgt_mask, memory_mask=None,
+        outs = self.transformer_decoder(tgt=seq_emb, memory=memory, tgt_mask=tgt_mask, memory_mask=None,
                                         tgt_key_padding_mask=tgt_padding_mask, memory_key_padding_mask=None)
+        return self.generator(outs)
+
+    def init_decode_mem_list(self, memory: Tensor):
+        return self.transformer_decoder.init_decode_mem_list(memory)
+
+    def decode_step(self, seq: Tensor, decode_mem_list: list, pos: int, tgt_padding_mask: Tensor=None):
+        '''
+        decode for single step
+        :param seq: the new input words. shape: (batch_size, 1)
+        :param decode_mem_list: the memory while decoding. It stores the [query, key, value] for previous words.
+        '''
+        if seq.ndim == 1:
+            seq = seq.unsqueeze(-1)
+        if tgt_padding_mask is not None:
+            assert tgt_padding_mask.shape[1] == pos + 1
+        seq_emb = self.positional_encoding_seq(x=self.seq_emb(seq), pos=(pos,))
+        outs = self.transformer_decoder(tgt=seq_emb, memory=None, tgt_mask=None, memory_mask=None,
+                                        tgt_key_padding_mask=tgt_padding_mask, memory_key_padding_mask=None, 
+                                        decode_mem_list=decode_mem_list)
+        return self.generator(outs)
+
+    def clear_cache(self):
+        self.transformer_decoder.clear_cache()
 
     def generate_square_subsequent_mask(self, size: int, device: str):
         mask = 1.0 - torch.triu(torch.ones((size, size), device=device), 1)
@@ -280,3 +342,7 @@ def _get_activation_fn(activation):
     elif activation == "gelu":
         return F.gelu
     raise RuntimeError("activation should be relu/gelu, not {}".format(activation))
+
+def _cat(input: Tuple[Tensor], dim: int=0):
+    input = tuple([x for x in input if x is not None])
+    return torch.cat(input, dim=dim)
