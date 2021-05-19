@@ -36,5 +36,5 @@ python prepare.py --root <project_root> --pre_config <prepare_config> --vocab_co
 | `img_width`        | 图像宽，整数                           | `512`                          |
 | `img_height`       | 图像高，整数                           | `256`                          |
 | `threshold`        | 二值化阈值，整数                       | `50`                           |
-| `threads`          | 同时创建线程数，整数                   | `16`                           |
+| `num_workers`      | 同时创建线程数，整数                   | `16`                           |
 

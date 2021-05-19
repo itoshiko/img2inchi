@@ -6,6 +6,7 @@ from model.Img2Seq import Img2Seq
 from pkg.utils.ProgBar import ProgressBar
 from pkg.utils.BeamSearch import beam_decode
 from pkg.utils.BeamSearch import greedy_decode
+from pkg.utils.utils import num_param
 
 PAD_ID = 0
 SOS_ID = 1
@@ -32,6 +33,7 @@ class Img2InchiModel(BaseModel):
             dropout = 0.5
         model = Img2Seq(img_w, img_h, vocab_size, dim_encoder, dim_decoder, dim_attention, dim_embed, dropout=dropout)
         self.model = model
+        print(f'The number of parameters: {num_param(model)}')
         return model
 
     def getOptimizer(self, lr_method="adam", lr=1e-3):

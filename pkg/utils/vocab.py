@@ -1,6 +1,6 @@
 import pickle
 import numpy as np
-from .utils import join
+from pkg.utils.utils import join, create_dirs
 
 
 PAD = '<PAD>'
@@ -30,10 +30,12 @@ def build_vocabulary(root, vocab_dir, inchi_list):
     vocabulary = tokens + vocabulary
     vocab_to_int = dict(zip( vocabulary, np.arange(len(vocabulary), dtype=np.uint8) ))
     int_to_vocab = dict(zip( np.arange(len(vocabulary), dtype=np.uint8), vocabulary ))
+    create_dirs(root, vocab_dir)
     with open(join(root, vocab_dir, "vocab_to_int.pkl"), "wb") as f:
         pickle.dump(vocab_to_int, f)
     with open(join(root, vocab_dir, "int_to_vocab.pkl"), "wb") as f:
         pickle.dump(int_to_vocab, f)
+    return vocab_to_int, int_to_vocab
 
 def build_vocab(vocabulary: set, string: str, split_others: bool):
     is_num = lambda x: '0' <= x and x <= '9'

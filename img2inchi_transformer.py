@@ -6,6 +6,7 @@ from model.Transformer import Img2SeqTransformer
 from pkg.utils.ProgBar import ProgressBar
 from pkg.utils.BeamSearch import beam_decode
 from pkg.utils.BeamSearch import greedy_decode
+from pkg.utils.utils import num_param
 
 
 class Img2InchiTransformerModel(BaseModel):
@@ -40,6 +41,7 @@ class Img2InchiTransformerModel(BaseModel):
         model = Img2SeqTransformer(feature_size, extractor_name, max_seq_len, tr_extractor, num_encoder_layers,
                                    num_decoder_layers, d_model, nhead, vocab_size, dim_feedforward, dropout)
         self.model = model
+        print(f'The number of parameters: {num_param(model)}')
         return model
 
     def getOptimizer(self, lr_method="adam", lr=1e-3):
