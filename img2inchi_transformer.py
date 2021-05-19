@@ -119,3 +119,5 @@ class Img2InchiTransformerModel(BaseModel):
         self.logger.info("- Evaluating: {}".format(prog.info))
 
         return {"Evaluate Loss": losses / len(test_loader)}
+
+    def evaluate(self, test_set):

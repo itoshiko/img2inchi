@@ -228,3 +228,14 @@ class BaseModel(object):
                     scores: (dict) scores["acc"] = 0.85 for instance
                 """
         raise NotImplementedError("Performs prediction")
+
+    # ! MUST OVERWRITE
+    def sample(self, encodings):
+        """Model-specific method to overwrite
+                Performs sampling when decoding
+                Args:
+                    encodings: output from network encoder
+                Returns:
+                    ws: sampling result
+                """
+        raise NotImplementedError("Performs sampling")
