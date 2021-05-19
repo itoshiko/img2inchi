@@ -12,6 +12,7 @@ PAD_ID = 0
 SOS_ID = 1
 EOS_ID = 2
 
+
 class Img2InchiModel(BaseModel):
     def __init__(self, config, output_dir, vocab):
         super(Img2InchiModel, self).__init__(config, output_dir)
@@ -59,6 +60,7 @@ class Img2InchiModel(BaseModel):
                 """
         # logging
         batch_size = config.batch_size
+        loss_mode = config.loss_mode
         nbatches = (len(train_set) + batch_size - 1) // batch_size
         progress_bar = ProgressBar(nbatches)
         self.model.train()
@@ -74,7 +76,11 @@ class Img2InchiModel(BaseModel):
             logits = self.model(img, seq_input)
             self.optimizer.zero_grad()
             seq_out = seq[:, 1:]
-            loss = self.criterion(logits.reshape(-1, logits.shape[-1]), seq_out.reshape(-1))
+            if loss_mode == "SCST":
+                # TODO implement SCST algorithm
+                pass
+            else:
+                loss = self.criterion(logits.reshape(-1, logits.shape[-1]), seq_out.reshape(-1))
             loss.backward()
             self.optimizer.step()
             losses += loss.item()
@@ -122,9 +128,10 @@ class Img2InchiModel(BaseModel):
         model = self.model
         encodings = model.encode(img)
         result = None
-        if mode=="beam":
-            result = beam_decode(decoder=self.model.decoder, encodings=encodings, beam_width=10, topk=1, max_len=max_len)
-        elif mode=="greedy":
+        if mode == "beam":
+            result = beam_decode(decoder=self.model.decoder, encodings=encodings, beam_width=10, topk=1,
+                                 max_len=max_len)
+        elif mode == "greedy":
             seq = torch.ones(1, 1).fill_(SOS_ID).type(torch.long).to(self._device)
             result = greedy_decode(self.model.decoder, encodings, seq)
         if result.ndim == 3:
@@ -142,3 +149,6 @@ class Img2InchiModel(BaseModel):
             decoded_tensor = torch.Tensor(decoded_result)
             return decoded_tensor
 
+    def sample(self, encodings):
+        # TODO implement sampling method
+        pass

@@ -11,3 +11,4 @@ lr_scheduler: 'CosineAnnealingLR'
 device: 'cuda:1'
 criterion_method: 'CrossEntropyLoss'
 n_epochs: 10
+loss_mode: 'SCST'
