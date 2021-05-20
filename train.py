@@ -17,13 +17,12 @@ from pkg.utils.LRScheduler import LRSchedule
               help='Path to training yaml config')
 @click.option('--model', default="./config/model.yaml",
               help='Path to model yaml config')
-@click.option('--output', default="./model weights/",
+@click.option('--output', default="./model weights",
               help='Path to save trained model')
 def main(data, vocab, training, model, output):
     # Load configs
     dir_output = output
     config = Config([data, vocab, training, model])
-    config.save(dir_output)
     my_vocab = vocabulary(root=config.path_train_root, vocab_dir=config.vocab_dir)
     config.vocab_size = my_vocab.size
 

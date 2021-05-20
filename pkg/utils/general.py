@@ -54,14 +54,8 @@ class Config:
 
     def save(self, dir_name):
         init_dir(dir_name)
-        if type(self.source) is list:
-            for s in self.source:
-                c = Config(s)
-                c.save(dir_name)
-        elif type(self.source) is dict:
-            yaml.dump(self.source, dir_name)
-        else:
-            copyfile(self.source, dir_name + self.export_name)
+        file_name = dir_name + '/' + self.export_name
+        yaml.dump(self.__dict__, file_name)
 
     def show(self, fun=print):
         if type(self.source) is list:
