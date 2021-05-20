@@ -107,7 +107,7 @@ class DecoderLayer(nn.Module):
         q, k, v = self.self_attn_linears(tgt, tgt, tgt)
         if decode_mem is not None:
             k, v = [torch.cat((x, y), dim=1) for x, y in zip([memk1, memv1], [k, v])]
-        self.self_attn_memory = [k, v]
+            self.self_attn_memory = [k, v]
         tgt2 = self.self_attn(q, k, v, pos_mask=tgt_mask, padding_mask=tgt_paddingg_mask)
 
         tgt = tgt + self.dropout1(tgt2)
@@ -116,7 +116,7 @@ class DecoderLayer(nn.Module):
         q, k, v = self.src_attn_linears(tgt, memory, memory)
         if decode_mem is not None:
             k, v = [torch.cat((x, y), dim=1) for x, y in zip([memk2, memv2], [k, v])]
-        self.src_attn_memory = [k, v]
+            self.src_attn_memory = [k, v]
         tgt2 = self.src_attn(q, k, v, pos_mask=memory_mask, padding_mask=memory_padding_mask)
 
         tgt = tgt + self.dropout2(tgt2)

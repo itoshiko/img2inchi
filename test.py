@@ -203,7 +203,5 @@ def predict(img, model, max_len=200):
     return _vocab.decode(seq)
 
 
-
-
 if __name__ == '__main__':
     test_transformer()
