@@ -2,6 +2,7 @@ import heapq
 from typing import Optional
 
 import torch
+import numpy as np
 from torch.tensor import Tensor
 from pkg.utils.utils import flatten_list
 
@@ -179,7 +180,7 @@ class BeamSearch(object):
         raise NotImplementedError("Method 'decode_step' isn't implemented.")
 
 
-def greedy_decode(decoder, encodings, seqs):
+def greedy_decode(decoder, encodings, seqs, sample_decode):
     dim_encoder = encodings.shape[-1]
     if encodings.ndim == 3:  # single input, add batch=1
         encodings = encodings.unsqueeze(0).view(1, -1, dim_encoder)
@@ -197,10 +198,15 @@ def greedy_decode(decoder, encodings, seqs):
     for t in range(max(decode_lengths)):
         decoder_hidden, decoder_cell, decoder_output = decoder.decode_step(encodings, decoder_hidden,
                                                                            decoder_cell, decoder_input)
-        topv, topi = decoder_output.data.topk(1, dim=1)  # get candidates
-        topi = topi.view(-1)
-        decoded_batch[:, t] = topi
-
-        decoder_input = topi.detach().view(-1, 1)
+        if sample_decode:
+            sample_i = torch.multinomial(decoder_output, 1, True)
+            sample_i = sample_i.view(-1)
+            decoded_batch[:, t] = sample_i
+            decoder_input = sample_i.detach().view(-1, 1)
+        else:
+            top_v, top_i = decoder_output.data.topk(1, dim=1)  # get candidates
+            top_i = top_i.view(-1)
+            decoded_batch[:, t] = top_i
+            decoder_input = top_i.detach().view(-1, 1)
 
     return decoded_batch

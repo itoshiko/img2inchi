@@ -1,5 +1,7 @@
 import torch
 
+import model.SelfCritical as SelfCritical
+
 from base import BaseModel
 from data_gen import get_dataLoader
 from model.Transformer import Img2SeqTransformer
@@ -73,6 +75,7 @@ class Img2InchiTransformerModel(BaseModel):
                 """
         # logging
         batch_size = config.batch_size
+        loss_mode = config.loss_mode
         nbatches = (len(train_set) + batch_size - 1) // batch_size
         progress_bar = ProgressBar(nbatches)
         self.model.train()
@@ -87,6 +90,16 @@ class Img2InchiTransformerModel(BaseModel):
             self.optimizer.zero_grad()
             seq_out = seq[:, 1:]
             loss = self.criterion(logits.reshape(-1, logits.shape[-1]), seq_out.reshape(-1))
+            if loss_mode == "SCST":
+                with torch.autograd:
+                    gts = []
+                    for i in range(batch_size):
+                        gts.append(self._vocab.decode(seq[i, :]))
+                    sampled_seq = self.sample(img)
+                    predict_seq = self.predict(img, max_len=200, mode="greedy")
+                    reward = SelfCritical.calculate_reward(sampled_seq, predict_seq, gts)
+                    r = reward["sample"] - reward["predict"]
+                loss = SelfCritical.SelfCritical.apply(loss, r)
             loss.backward()
             self.optimizer.step()
             losses += loss.item()
@@ -138,7 +151,7 @@ class Img2InchiTransformerModel(BaseModel):
             result = beam_search.beam_decode(encode_memory=encodings)
         elif mode == "greedy":
             seq = torch.ones(1, 1).fill_(SOS_ID).type(torch.long).to(self._device)
-            result = greedy_decode(self.model.decoder, encodings, seq)
+            result = greedy_decode(self.model.decoder, encodings, seq, False)
         if result.ndim == 3:
             decoded_result = []
             for i in range(result.shape[0]):
@@ -153,3 +166,24 @@ class Img2InchiTransformerModel(BaseModel):
                 decoded_result.append(self._vocab.decode(result[i, :]))
             decoded_tensor = torch.Tensor(decoded_result)
             return decoded_tensor
+
+    def sample(self, img):
+        img = img.to(self._device)
+        model = self.model
+        encodings = model.encode(img)
+        seq = torch.ones(1, 1).fill_(SOS_ID).type(torch.long).to(self._device)
+        result = greedy_decode(self.model.decoder, encodings, seq, True)
+        sampled_result = []
+        if result.ndim == 3:
+            for i in range(result.shape[0]):
+                for j in range(result.shape[1]):
+                    sampled_result.append(self._vocab.decode(result[i, j, :]))
+            sampled_tensor = torch.Tensor(sampled_result)
+            sampled_tensor.view(result.shape[0], result.shape[1])
+            return sampled_tensor
+        elif result.ndim == 2:
+            for i in range(result.shape[0]):
+                sampled_result.append(self._vocab.decode(result[i, :]))
+            sampled_tensor = torch.Tensor(sampled_result)
+            return sampled_tensor
+

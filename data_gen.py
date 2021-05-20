@@ -7,6 +7,7 @@ from torchvision.transforms import ToTensor
 from pkg.utils.utils import read_img, join
 from pkg.utils.vocab import vocab
 
+
 class Img2SeqDataset(Dataset):
     def __init__(self, root, data_dir, img_dir, annotations_file, vocab):
         self.vocab = vocab
@@ -44,12 +45,12 @@ class Img2SeqDataset(Dataset):
         return torch.stack(img_batch), seq_batch.long()
 
 
-def get_dataLoader(dataset: Img2SeqDataset, batch_size: int=4, mode='Img2Seq'):
+def get_dataLoader(dataset: Img2SeqDataset, batch_size: int = 4, mode='Img2Seq'):
     if mode == 'Transformer':
         return DataLoader(dataset, batch_size=batch_size,
-                        shuffle=True, collate_fn=dataset.generate_batch_transformer)
+                          shuffle=True, collate_fn=dataset.generate_batch_transformer)
     elif mode == 'Img2Seq':
         return DataLoader(dataset, batch_size=batch_size,
-                        shuffle=True, collate_fn=dataset.generate_batch_Img2Seq)
+                          shuffle=True, collate_fn=dataset.generate_batch_Img2Seq)
     else:
         raise Exception('Unknown mode')
