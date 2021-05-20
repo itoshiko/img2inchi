@@ -15,9 +15,11 @@ class BaseModel(object):
 
     def _init_relative_path(self, output_dir):
         init_dir(output_dir)
-        self._model_dir = output_dir + "model_weights/"
+        training_time = time.strftime("%Y-%m-%d %H:%M:%S", time.localtime())
+        self._model_dir = output_dir + "/" + training_time
         init_dir(self._model_dir)
-        self._model_path = self._model_dir + "model.cpkt"
+        self._model_path = self._model_dir + "/model.cpkt"
+        self._config_export_path = self._model_dir
 
     def build_train(self, config=None):
         self.logger.info("- Building model...")
@@ -126,6 +128,7 @@ class BaseModel(object):
         """Saves model"""
         self.logger.info("- Saving model...")
         torch.save(self.model.state_dict(), self._model_path)
+        self._config.save(self._config_export_path)
         self.logger.info("- Saved model in {}".format(self._model_dir))
 
     # 4. train and evaluate

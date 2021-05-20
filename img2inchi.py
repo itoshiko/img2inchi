@@ -134,7 +134,7 @@ class Img2InchiModel(BaseModel):
             result = beam_search.beam_decode(encode_memory=encodings)
         elif mode == "greedy":
             seq = torch.ones(1, 1).fill_(SOS_ID).type(torch.long).to(self._device)
-            result = greedy_decode(self.model.decoder, encodings, seq)
+            result = greedy_decode(self.model.decoder, encodings, seq, False)
         if result.ndim == 3:
             decoded_result = []
             for i in range(result.shape[0]):

@@ -10,5 +10,6 @@ lr_method: 'adam'
 lr_scheduler: 'CosineAnnealingLR'
 device: 'cuda:0'
 criterion_method: 'CrossEntropyLoss'
-n_epochs: 1
+n_epochs: 10
 loss_mode: 'SCST'
+SCST_predict_mode: 'greedy'
