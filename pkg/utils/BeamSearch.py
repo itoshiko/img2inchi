@@ -1,8 +1,9 @@
 import heapq
-from typing import Optional, Tuple
+from typing import Optional
 
 import torch
 from torch.tensor import Tensor
+from pkg.utils.utils import flatten_list
 
 PAD_ID = 0
 SOS_ID = 1
@@ -52,11 +53,10 @@ class BeamSearch(object):
     Then you can use beam_decode method for beam search decoding.
     """
 
-    def __init__(self, decoder, beam_width: int=10, topk: int=1, max_len: int=200, max_batch: int=1):
+    def __init__(self, beam_width: int=10, topk: int=1, max_len: int=200, max_batch: int=1):
         """
         :param decoder: decoder of network that will be used to decode.
         """
-        self.decoder = decoder
         self.beam_width = beam_width
         topk = min(topk, beam_width)
         self.topk = topk
@@ -139,15 +139,15 @@ class BeamSearch(object):
         batch_size = len(nodes)
         next_nodes = [[] * max_batch]
 
-        nodes = sum(nodes, [])   # flatten
+        nodes = flatten_list(nodes)   # flatten
 
         for i in range(0, len(nodes), max_batch):
-            nodes_per_batch = nodes[i:i + max_batch]
-            decode_memory_list, inputs = list(zip(*[read_node(node) for node in nodes_per_batch]))
+            batch_nodes = nodes[i:i + max_batch]
+            decode_memory_list, inputs = list(zip(*[read_node(node) for node in batch_nodes]))
             decode_answers = self.decode_step(decode_memory_list=decode_memory_list, inputs=inputs)
             for k, decode_ans_list in enumerate(decode_answers):
-                next_nodes[nodes_per_batch[k].batch_id] += [
-                    BeamSearchNode(*decode_ans, parent=nodes_per_batch[k])
+                next_nodes[batch_nodes[k].batch_id] += [
+                    BeamSearchNode(*decode_ans, parent=batch_nodes[k])
                     for decode_ans in decode_ans_list
                 ]
 
@@ -165,7 +165,7 @@ class BeamSearch(object):
         '''
         raise NotImplementedError("Method 'init_decode_memory' isn't implemented.")
 
-    def decode_step(self, decode_memory_list: list, inputs: 'list[int]') -> 'list[list[Tuple]]':
+    def decode_step(self, decode_memory_list: list, inputs: 'list[int]') -> 'list[list[tuple]]':
         '''
         Decode for single step. This method should implemented by subclass.
 

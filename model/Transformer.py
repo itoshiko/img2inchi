@@ -1,4 +1,4 @@
-from typing import Optional, Tuple
+from typing import Optional, NewType, TypeVar
 
 import torch
 import torch.nn as nn
@@ -14,107 +14,6 @@ from model.TokenEmbedding import TokenEmbedding
 
 PAD_ID = 0
 pretrained = "model weights"
-
-
-class TransformerEncoder(nn.Module):
-    """TransformerEncoder is a stack of N encoder layers
-
-    Args:
-        encoder_layer: an instance of the TransformerEncoderLayer() class (required).
-        num_layers: the number of sub-encoder-layers in the encoder (required).
-        norm: the layer normalization component (optional).
-
-    """
-    __constants__ = ['norm']
-
-    def __init__(self, encoder_layer, num_layers, norm=None):
-        super(TransformerEncoder, self).__init__()
-        self.layers = clones(encoder_layer, num_layers)
-        self.num_layers = num_layers
-        self.norm = norm
-
-    def forward(self, src: Tensor, src_mask: Optional[Tensor] = None, src_key_padding_mask: Optional[Tensor] = None) -> Tensor:
-        """Pass the input through the encoder layers in turn.
-
-        Args:
-            src: the sequence to the encoder (required).
-            mask: the mask for the src sequence (optional).
-            src_key_padding_mask: the mask for the src keys per batch (optional).
-
-        Shape:
-            see the docs in Transformer class.
-        """
-        output = src
-        for mod in self.layers:
-            output = mod(output, src_mask=src_mask, src_padding_mask=src_key_padding_mask)
-
-        if self.norm is not None:
-            output = self.norm(output)
-
-        return output
-
-
-class TransformerDecoder(nn.Module):
-    """TransformerDecoder is a stack of N decoder layers
-
-    Args:
-        decoder_layer: an instance of the TransformerDecoderLayer() class (required).
-        num_layers: the number of sub-decoder-layers in the decoder (required).
-        norm: the layer normalization component (optional).
-
-    """
-    __constants__ = ['norm']
-
-    def __init__(self, decoder_layer: nn.Module, num_layers: int, norm=None):
-        super(TransformerDecoder, self).__init__()
-        self.layers = clones(decoder_layer, num_layers)
-        self.num_layers = num_layers
-        self.norm = norm
-
-    def forward(self, tgt: Tensor, memory: Tensor, 
-                tgt_mask: Optional[Tensor] = None, memory_mask: Optional[Tensor] = None, 
-                tgt_key_padding_mask: Optional[Tensor] = None, memory_key_padding_mask: Optional[Tensor] = None,
-                decode_mem_list: Optional[list] = None) -> Tensor:
-        """Pass the inputs (and mask) through the decoder layer in turn.
-
-        Args:
-            tgt: the sequence to the decoder (required).
-            memory: the sequence from the last layer of the encoder (required).
-            tgt_mask: the mask for the tgt sequence (optional).
-            memory_mask: the mask for the memory sequence (optional).
-            tgt_key_padding_mask: the mask for the tgt keys per batch (optional).
-            memory_key_padding_mask: the mask for the memory keys per batch (optional).
-
-        Shape:
-            see the docs in Transformer class.
-        """
-        output = tgt
-        for i in range(self.num_layers):
-            mod = self.layers[i]
-            decode_mem = decode_mem_list[i] if decode_mem_list is not None else None
-            output = mod(
-                output, memory, 
-                tgt_mask=tgt_mask, tgt_paddingg_mask=tgt_key_padding_mask,
-                memory_mask=memory_mask, memory_padding_mask=memory_key_padding_mask,
-                decode_mem=decode_mem
-            )
-            if decode_mem_list is not None:
-                decode_mem_list[i] = (mod.self_attn_memory, mod.src_attn_memory)
-        
-        if self.norm is not None:
-            output = self.norm(output)
-
-        return output
-    
-    def init_decode_mem_list(self, memory: Tensor):
-        decode_mem_list = []
-        for i in range(self.num_layers):
-            decode_mem_list.append(self.layers[i].init_decode_memory(memory))
-        return decode_mem_list
-
-    def clear_cache(self):
-        for i in range(self.num_layers):
-            self.layers[i].clear_cache()
 
 class EncoderLayer(nn.Module):
     '''
@@ -163,6 +62,9 @@ class EncoderLayer(nn.Module):
 class DecoderLayer(nn.Module):
     def __init__(self, d_model, nhead, dim_feedforward=2048, dropout=0.1, activation="relu"):
         super(DecoderLayer, self).__init__()
+
+        self.d_model = d_model
+
         self.self_attn = MultiHeadedAttention(d_model=d_model, nhead=nhead, dropout=dropout)
         self.src_attn = MultiHeadedAttention(d_model=d_model, nhead=nhead, dropout=dropout)
 
@@ -200,20 +102,20 @@ class DecoderLayer(nn.Module):
         :param tgt: target. shape: (barch_size, max_len, d_model)
         '''
         if decode_mem is not None:
-            mem1, mem2 = decode_mem
+            memk1, memv1, memk2, memv2 = decode_mem
 
-        q1, k1, v1 = self.self_attn_linears(tgt, tgt, tgt)
+        q, k, v = self.self_attn_linears(tgt, tgt, tgt)
         if decode_mem is not None:
-            k1, v1 = [_cat((x, y), dim=1) for x, y in zip(mem1, [k1, v1])]
-        self.self_attn_memory = [k1, v1]
-        tgt2 = self.self_attn(q1, k1, v1, pos_mask=tgt_mask, padding_mask=tgt_paddingg_mask)
+            k, v = [torch.cat((x, y), dim=1) for x, y in zip([memk1, memv1], [k, v])]
+        self.self_attn_memory = [k, v]
+        tgt2 = self.self_attn(q, k, v, pos_mask=tgt_mask, padding_mask=tgt_paddingg_mask)
 
         tgt = tgt + self.dropout1(tgt2)
         tgt = self.norm1(tgt)
 
         q, k, v = self.src_attn_linears(tgt, memory, memory)
         if decode_mem is not None:
-            k, v = [_cat((x, y), dim=1) for x, y in zip(mem2, [k, v])]
+            k, v = [torch.cat((x, y), dim=1) for x, y in zip([memk2, memv2], [k, v])]
         self.src_attn_memory = [k, v]
         tgt2 = self.src_attn(q, k, v, pos_mask=memory_mask, padding_mask=memory_padding_mask)
 
@@ -228,11 +130,115 @@ class DecoderLayer(nn.Module):
         self.self_attn_memory = None
         self.src_attn_memory = None
 
-    def init_decode_memory(self, memory: Tensor):
-        return ([None, None], self.src_attn_linears(None, memory, memory)[1:])
+    def init_decode_memory(self, memory: Tensor, device) -> 'list[Tensor]':
+        batch_size = memory.shape[0]
+        return [init_empty_tensor(batch_size=batch_size, d_model=self.d_model, device=device), 
+                init_empty_tensor(batch_size=batch_size, d_model=self.d_model, device=device)] + \
+                self.src_attn_linears(torch.zeros((batch_size, 0, self.d_model)), memory, memory)[1:]
+
+
+class TransformerEncoder(nn.Module):
+    """TransformerEncoder is a stack of N encoder layers
+
+    Args:
+        encoder_layer: an instance of the TransformerEncoderLayer() class (required).
+        num_layers: the number of sub-encoder-layers in the encoder (required).
+        norm: the layer normalization component (optional).
+
+    """
+    __constants__ = ['norm']
+
+    def __init__(self, encoder_layer: EncoderLayer, num_layers: int, norm=None):
+        super(TransformerEncoder, self).__init__()
+        self.layers = clones(encoder_layer, num_layers)
+        self.num_layers = num_layers
+        self.norm = norm
+
+    def forward(self, src: Tensor, src_mask: Optional[Tensor] = None, src_key_padding_mask: Optional[Tensor] = None) -> Tensor:
+        """Pass the input through the encoder layers in turn.
+
+        Args:
+            src: the sequence to the encoder (required).
+            mask: the mask for the src sequence (optional).
+            src_key_padding_mask: the mask for the src keys per batch (optional).
+
+        Shape:
+            see the docs in Transformer class.
+        """
+        output = src
+        for mod in self.layers:
+            output = mod(output, src_mask=src_mask, src_padding_mask=src_key_padding_mask)
+
+        if self.norm is not None:
+            output = self.norm(output)
+
+        return output
+
+
+class TransformerDecoder(nn.Module):
+    """TransformerDecoder is a stack of N decoder layers
+
+    Args:
+        decoder_layer: an instance of the TransformerDecoderLayer() class (required).
+        num_layers: the number of sub-decoder-layers in the decoder (required).
+        norm: the layer normalization component (optional).
+
+    """
+    __constants__ = ['norm']
+
+    def __init__(self, decoder_layer: DecoderLayer, num_layers: int, norm=None):
+        super(TransformerDecoder, self).__init__()
+        self.layers = clones(decoder_layer, num_layers)
+        self.num_layers = num_layers
+        self.norm = norm
+
+    def forward(self, tgt: Tensor, memory: Tensor, 
+                tgt_mask: Optional[Tensor] = None, memory_mask: Optional[Tensor] = None, 
+                tgt_key_padding_mask: Optional[Tensor] = None, memory_key_padding_mask: Optional[Tensor] = None,
+                decode_mem_list: Optional[list] = None) -> Tensor:
+        """Pass the inputs (and mask) through the decoder layer in turn.
+
+        Args:
+            tgt: the sequence to the decoder (required).
+            memory: the sequence from the last layer of the encoder (required).
+            tgt_mask: the mask for the tgt sequence (optional).
+            memory_mask: the mask for the memory sequence (optional).
+            tgt_key_padding_mask: the mask for the tgt keys per batch (optional).
+            memory_key_padding_mask: the mask for the memory keys per batch (optional).
+
+        Shape:
+            see the docs in Transformer class.
+        """
+        output = tgt
+        for i in range(self.num_layers):
+            mod = self.layers[i]
+            decode_mem = decode_mem_list[i] if decode_mem_list is not None else None
+            output = mod(
+                output, memory, 
+                tgt_mask=tgt_mask, tgt_paddingg_mask=tgt_key_padding_mask,
+                memory_mask=memory_mask, memory_padding_mask=memory_key_padding_mask,
+                decode_mem=decode_mem
+            )
+            if decode_mem_list is not None:
+                decode_mem_list[i] = (mod.self_attn_memory, mod.src_attn_memory)
+        
+        if self.norm is not None:
+            output = self.norm(output)
+
+        return output
+    
+    def init_decode_memory(self, memory: Tensor, device) -> 'list[list[Tensor]]':
+        decode_mem_list = []
+        for i in range(self.num_layers):
+            decode_mem_list.append(self.layers[i].init_decode_memory(memory=memory, device=device))
+        return decode_mem_list
+
+    def clear_cache(self):
+        for i in range(self.num_layers):
+            self.layers[i].clear_cache()
 
 class FeaturesExtractor(nn.Module):
-    def __init__(self, num_features: int=512, output_size: Tuple[int, int]=(16, 32), 
+    def __init__(self, num_features: int=512, output_size: 'tuple[int, int]'=(16, 32), 
                 extractor_name: str='resnet34', tr_extractor: bool=False):
         super(FeaturesExtractor, self).__init__()
         if extractor_name == 'resnet101':
@@ -266,7 +272,7 @@ class FeaturesExtractor(nn.Module):
 
 
 class Img2SeqTransformer(nn.Module):
-    def __init__(self, feature_size: Tuple[int, int], extractor_name: str, max_seq_len: int,
+    def __init__(self, feature_size: 'tuple[int, int]', extractor_name: str, max_seq_len: int,
                 tr_extractor: bool, num_encoder_layers: int, num_decoder_layers: int,
                 d_model: int, nhead: int, vocab_size: int,
                 dim_feedforward: int = 1024, dropout: float = 0.1):
@@ -307,10 +313,10 @@ class Img2SeqTransformer(nn.Module):
                                         tgt_key_padding_mask=tgt_padding_mask, memory_key_padding_mask=None)
         return self.generator(outs)
 
-    def init_decode_mem_list(self, memory: Tensor):
-        return self.transformer_decoder.init_decode_mem_list(memory)
+    def init_decode_memory(self, memory: Tensor):
+        return self.transformer_decoder.init_decode_memory(memory=memory, device=self.device)
 
-    def decode_step(self, seq: Tensor, decode_mem_list: list, pos: int, tgt_padding_mask: Tensor=None):
+    def decode_step(self, seq: Tensor, decode_memory: list, pos: Optional[int]=None, tgt_padding_mask: Tensor=None) -> Tensor:
         '''
         decode for single step
         :param seq: the new input words. shape: (batch_size, 1)
@@ -318,12 +324,16 @@ class Img2SeqTransformer(nn.Module):
         '''
         if seq.ndim == 1:
             seq = seq.unsqueeze(-1)
+        if pos is None:
+            pos = decode_memory[0, 0].shape[1]
         if tgt_padding_mask is not None:
             assert tgt_padding_mask.shape[1] == pos + 1
+        batch_size = seq.shape[0]
+        memory = init_empty_tensor(batch_size=batch_size, d_model=self.d_model)
         seq_emb = self.positional_encoding_seq(x=self.seq_emb(seq), pos=(pos,))
-        outs = self.transformer_decoder(tgt=seq_emb, memory=None, tgt_mask=None, memory_mask=None,
+        outs = self.transformer_decoder(tgt=seq_emb, memory=memory, tgt_mask=None, memory_mask=None,
                                         tgt_key_padding_mask=tgt_padding_mask, memory_key_padding_mask=None, 
-                                        decode_mem_list=decode_mem_list)
+                                        decode_mem_list=decode_memory)
         return self.generator(outs)
 
     def clear_cache(self):
@@ -335,6 +345,7 @@ class Img2SeqTransformer(nn.Module):
         # mask = mask.float().masked_fill(mask == 0, float('-inf')).masked_fill(mask == 1, float(0.0))
         return mask
 
+TransformerType = NewType('TransformerType', Img2SeqTransformer)
 
 def _get_activation_fn(activation):
     if activation == "relu":
@@ -343,6 +354,11 @@ def _get_activation_fn(activation):
         return F.gelu
     raise RuntimeError("activation should be relu/gelu, not {}".format(activation))
 
-def _cat(input: Tuple[Tensor], dim: int=0):
+def init_empty_tensor(batch_size: int, d_model: int, device):
+    return torch.zeros((batch_size, 0, d_model), device=device)
+
+'''
+def _cat(input: 'tuple[Tensor]', dim: int=0):
     input = tuple([x for x in input if x is not None])
     return torch.cat(input, dim=dim)
+'''

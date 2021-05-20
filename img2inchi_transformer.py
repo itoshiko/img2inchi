@@ -123,3 +123,4 @@ class Img2InchiTransformerModel(BaseModel):
         return {"Evaluate Loss": losses / len(test_loader)}
 
     def evaluate(self, test_set):
+        pass

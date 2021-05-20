@@ -1,6 +1,6 @@
 import copy
 import math
-from typing import Optional, Tuple
+from typing import Optional
 
 import torch
 import torch.nn as nn
@@ -82,4 +82,4 @@ class multiLinear(nn.Module):
         self.linears = clones(nn.Linear(d_model, d_model), num)
 
     def forward(self, *inputs: Tensor) -> 'list[Tensor]':
-        return [l(x) if x is not None else None for l, x in zip(self.linears, inputs)]
+        return [l(x) for l, x in zip(self.linears, inputs)]

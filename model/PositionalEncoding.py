@@ -1,5 +1,4 @@
 import math
-from typing import Tuple
 import torch
 import torch.nn as nn
 import torch.nn.functional as F
@@ -27,7 +26,7 @@ class PositionalEncodingNd(nn.Module):
         self.register_buffer('pos_embedding', pos_embedding)
         self.dropout = nn.Dropout(dropout)
 
-    def forward(self, x: Tensor, pos: Tuple[int]=None):
+    def forward(self, x: Tensor, pos: 'tuple[int]'=None):
         """
         :param token_embedding: shape (batch_size, (positional), d_model)
         :return: the data after embedding positional encodings

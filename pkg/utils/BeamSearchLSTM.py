@@ -1,18 +1,20 @@
-from typing import Tuple
+
 from torch import stack, topk
 from torch.nn.functional import softmax
 from torch.nn import Module
 from torch.tensor import Tensor
 
 from pkg.utils.BeamSearch import BeamSearch
+from model.Img2Seq import DecoderWithAttention
 
 class BeamSearchLSTM(BeamSearch):
     """
     BeamSearch class for LSTM model.
     """
 
-    def __init__(self, decoder: Module, device, beam_width: int=10, topk: int=1, max_len: int=200, max_batch: int=1):
-        super(BeamSearchLSTM, self).__init__(decoder, beam_width, topk, max_len, max_batch)
+    def __init__(self, decoder: DecoderWithAttention, device, beam_width: int=10, topk: int=1, max_len: int=200, max_batch: int=1):
+        super(BeamSearchLSTM, self).__init__(beam_width, topk, max_len, max_batch)
+        self.decoder = decoder
         self.device = device
 
     def init_decode_memory(self, encode_memory):
@@ -30,7 +32,7 @@ class BeamSearchLSTM(BeamSearch):
             decode_memory_list.append((encode_memory[k], h[k], c[k]))
         return decode_memory_list
 
-    def decode_step(self, decode_memory_list: 'list[Tuple]', inputs: 'list[int]') -> 'list[list[Tuple]]':
+    def decode_step(self, decode_memory_list: 'list[tuple]', inputs: 'list[int]') -> 'list[list[tuple[tuple, int, float]]]':
         '''
         Decode for single step using decoder.decode_step.
 
@@ -54,12 +56,11 @@ class BeamSearchLSTM(BeamSearch):
         del enc
         probs = softmax(outputs, dim=1)
         probs, indexes = topk(probs, self.beam_width, dim=1)
-        decode_answers = []
-        for k in range(batch_size):
-            decode_answers.append([
-                ((encode_memory[k], h[k], c[k]), indexes[j], probs[k][j]) 
-                for j in range(self.beam_width)
-            ])
+        decode_answers = [
+            [((encode_memory[k], h[k], c[k]), int(indexes[j].item), float(probs[k][j].item)) 
+            for j in range(self.beam_width)]
+            for k in range(batch_size)
+        ]
         return decode_answers
 
     def beam_decode(self, encode_memory: Tensor):
