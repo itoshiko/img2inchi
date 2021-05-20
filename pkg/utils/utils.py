@@ -1,4 +1,5 @@
 from os import makedirs
+from typing import TypeVar, Union
 from numpy import array, ndarray
 
 try:
@@ -85,3 +86,11 @@ def num_param(model):
             n *= d
         num += n
     return num
+
+T = TypeVar('T')
+
+def split_list(l: Union['list[T]', 'tuple[T]'], d: int) -> 'list[list[T]]':
+    return [l[i:i + d] for i in range(0, len(l), d)]
+
+def flatten_list(l: 'list[list[T]]') -> 'list[T]':
+    return sum(l, [])

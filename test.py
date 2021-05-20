@@ -59,7 +59,7 @@ def test_transformer():
     start_t = time.time()
     with torch.no_grad():
         memory = model.encode(img)
-        decode_mem_list = model.init_decode_mem_list(memory)
+        decode_mem_list = model.init_decode_memory(memory)
         s = torch.zeros((BATCH_SIZE, 1, _vocab.size)).to(device)
         for i in range(seq.shape[1] - 1):
             tgt_padding_mask = seq[:, :i + 1] == PAD_ID
