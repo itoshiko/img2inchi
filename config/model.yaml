@@ -2,9 +2,9 @@ transformer:
   feature_size_1:
   feature_size_2:
   extractor_name: 'resnet34'
-  max_seq_len: 200
+  max_seq_len: 300
   tr_extractor: FALSE
-  num_encoder_layers: 3
+  num_encoder_layers: 2
   num_decoder_layers: 3
   d_model: 512
   nhead: 8

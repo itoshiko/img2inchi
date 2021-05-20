@@ -107,7 +107,7 @@ class DecoderLayer(nn.Module):
         q, k, v = self.self_attn_linears(tgt, tgt, tgt)
         if decode_mem is not None:
             k, v = [torch.cat((x, y), dim=1) for x, y in zip([memk1, memv1], [k, v])]
-        self.self_attn_memory = [k, v]
+            self.self_attn_memory = [k, v]
         tgt2 = self.self_attn(q, k, v, pos_mask=tgt_mask, padding_mask=tgt_paddingg_mask)
 
         tgt = tgt + self.dropout1(tgt2)
@@ -116,7 +116,7 @@ class DecoderLayer(nn.Module):
         q, k, v = self.src_attn_linears(tgt, memory, memory)
         if decode_mem is not None:
             k, v = [torch.cat((x, y), dim=1) for x, y in zip([memk2, memv2], [k, v])]
-        self.src_attn_memory = [k, v]
+            self.src_attn_memory = [k, v]
         tgt2 = self.src_attn(q, k, v, pos_mask=memory_mask, padding_mask=memory_padding_mask)
 
         tgt = tgt + self.dropout2(tgt2)
@@ -134,7 +134,10 @@ class DecoderLayer(nn.Module):
         batch_size = memory.shape[0]
         return [init_empty_tensor(batch_size=batch_size, d_model=self.d_model, device=device), 
                 init_empty_tensor(batch_size=batch_size, d_model=self.d_model, device=device)] + \
-                self.src_attn_linears(torch.zeros((batch_size, 0, self.d_model)), memory, memory)[1:]
+                self.src_attn_linears(
+                    init_empty_tensor(batch_size=batch_size, d_model=self.d_model, device=device), 
+                    memory, memory
+                )[1:]
 
 
 class TransformerEncoder(nn.Module):
@@ -220,7 +223,7 @@ class TransformerDecoder(nn.Module):
                 decode_mem=decode_mem
             )
             if decode_mem_list is not None:
-                decode_mem_list[i] = (mod.self_attn_memory, mod.src_attn_memory)
+                decode_mem_list[i] = mod.self_attn_memory + mod.src_attn_memory
         
         if self.norm is not None:
             output = self.norm(output)
@@ -329,7 +332,7 @@ class Img2SeqTransformer(nn.Module):
         if tgt_padding_mask is not None:
             assert tgt_padding_mask.shape[1] == pos + 1
         batch_size = seq.shape[0]
-        memory = init_empty_tensor(batch_size=batch_size, d_model=self.d_model)
+        memory = init_empty_tensor(batch_size=batch_size, d_model=self.d_model, device=self.device)
         seq_emb = self.positional_encoding_seq(x=self.seq_emb(seq), pos=(pos,))
         outs = self.transformer_decoder(tgt=seq_emb, memory=memory, tgt_mask=None, memory_mask=None,
                                         tgt_key_padding_mask=tgt_padding_mask, memory_key_padding_mask=None, 

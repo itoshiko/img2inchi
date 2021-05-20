@@ -49,7 +49,7 @@ def test_transformer():
     data = Img2SeqDataset(root=root, data_dir=data_dir, img_dir="train", annotations_file="small_train_set_labels.csv", vocab=_vocab)
     dataLoader = get_dataLoader(data, batch_size=BATCH_SIZE, mode='Transformer')
     model = tfm.Img2SeqTransformer(feature_size=(8, 16), extractor_name='resnet34', max_seq_len=200,
-                                    tr_extractor=False, num_encoder_layers=6, num_decoder_layers=6,
+                                    tr_extractor=False, num_encoder_layers=6, num_decoder_layers=1,
                                     d_model=512, nhead=8, vocab_size=_vocab.size, dropout=0.0)
     model = model.to(device)
     model.eval()
@@ -201,8 +201,6 @@ def predict(img, model, max_len=200):
         if next_word == EOS_ID:
             break
     return _vocab.decode(seq)
-
-
 
 
 if __name__ == '__main__':

@@ -96,7 +96,7 @@ class BeamSearch(object):
         # decode
         for _ in range(self.max_len):
             # expand the nodes and get the successor
-            nodes = self.expand_nodes(self.beam_width, encode_memory, nodes)
+            nodes = self.expand_nodes(nodes)
 
             # check the ended nodes
             for k in range(batch_size):
@@ -125,7 +125,7 @@ class BeamSearch(object):
     
         return decoded_batch
 
-    def expand_nodes(self, nodes: 'list[BeamSearchNode]') -> 'list[BeamSearchNode]':
+    def expand_nodes(self, nodes: 'list[list[BeamSearchNode]]') -> 'list[list[BeamSearchNode]]':
         """
         Expand nodes. Do not call this method directly.
 
