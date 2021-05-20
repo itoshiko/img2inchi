@@ -4,7 +4,7 @@ from base import BaseModel
 from data_gen import get_dataLoader
 from model.Img2Seq import Img2Seq
 from pkg.utils.ProgBar import ProgressBar
-from pkg.utils.BeamSearch import beam_decode
+from pkg.utils.BeamSearchLSTM import BeamSearchLSTM
 from pkg.utils.BeamSearch import greedy_decode
 from pkg.utils.utils import num_param
 
@@ -129,8 +129,9 @@ class Img2InchiModel(BaseModel):
         encodings = model.encode(img)
         result = None
         if mode == "beam":
-            result = beam_decode(decoder=self.model.decoder, encodings=encodings, beam_width=10, topk=1,
-                                 max_len=max_len)
+            beam_search = BeamSearchLSTM(decoder=self.model.decoder, device=self._device, beam_width=10,
+                                            topk=1, max_len=max_len, max_batch=100)
+            result = beam_search.beam_decode(encode_memory=encodings)
         elif mode == "greedy":
             seq = torch.ones(1, 1).fill_(SOS_ID).type(torch.long).to(self._device)
             result = greedy_decode(self.model.decoder, encodings, seq)
@@ -140,7 +141,7 @@ class Img2InchiModel(BaseModel):
                 for j in range(result.shape[1]):
                     decoded_result.append(self._vocab.decode(result[i, j, :]))
             decoded_tensor = torch.Tensor(decoded_result)
-            decoded_tensor.view(result.shape[0], result.sjape[1])
+            decoded_tensor.view(result.shape[0], result.shape[1])
             return decoded_tensor
         elif result.ndim == 2:
             decoded_result = []

@@ -4,9 +4,14 @@ from base import BaseModel
 from data_gen import get_dataLoader
 from model.Transformer import Img2SeqTransformer
 from pkg.utils.ProgBar import ProgressBar
-from pkg.utils.BeamSearch import beam_decode
+from pkg.utils.BeamSearchTransformer import BeamSearchTransformer
 from pkg.utils.BeamSearch import greedy_decode
 from pkg.utils.utils import num_param
+
+
+PAD_ID = 0
+SOS_ID = 1
+EOS_ID = 2
 
 
 class Img2InchiTransformerModel(BaseModel):
@@ -122,5 +127,29 @@ class Img2InchiTransformerModel(BaseModel):
 
         return {"Evaluate Loss": losses / len(test_loader)}
 
-    def evaluate(self, test_set):
-        pass
+    def predict(self, img, max_len=200, mode="beam"):
+        img = img.to(self._device)
+        model = self.model
+        encodings = model.encode(img)
+        result = None
+        if mode == "beam":
+            beam_search = BeamSearchTransformer(decoder=self.model.decoder, device=self._device, beam_width=10,
+                                            topk=1, max_len=max_len, max_batch=100)
+            result = beam_search.beam_decode(encode_memory=encodings)
+        elif mode == "greedy":
+            seq = torch.ones(1, 1).fill_(SOS_ID).type(torch.long).to(self._device)
+            result = greedy_decode(self.model.decoder, encodings, seq)
+        if result.ndim == 3:
+            decoded_result = []
+            for i in range(result.shape[0]):
+                for j in range(result.shape[1]):
+                    decoded_result.append(self._vocab.decode(result[i, j, :]))
+            decoded_tensor = torch.Tensor(decoded_result)
+            decoded_tensor.view(result.shape[0], result.shape[1])
+            return decoded_tensor
+        elif result.ndim == 2:
+            decoded_result = []
+            for i in range(result.shape[0]):
+                decoded_result.append(self._vocab.decode(result[i, :]))
+            decoded_tensor = torch.Tensor(decoded_result)
+            return decoded_tensor
