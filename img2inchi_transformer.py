@@ -92,11 +92,12 @@ class Img2InchiTransformerModel(BaseModel):
             loss = self.criterion(logits.reshape(-1, logits.shape[-1]), seq_out.reshape(-1))
             if loss_mode == "SCST":
                 with torch.autograd:
+                    SCST_predict_mode = config.SCST_predict_mode
                     gts = []
                     for i in range(batch_size):
                         gts.append(self._vocab.decode(seq[i, :]))
                     sampled_seq = self.sample(img)
-                    predict_seq = self.predict(img, max_len=200, mode="greedy")
+                    predict_seq = self.predict(img, max_len=200, mode=SCST_predict_mode)
                     reward = SelfCritical.calculate_reward(sampled_seq, predict_seq, gts)
                     r = reward["sample"] - reward["predict"]
                 loss = SelfCritical.SelfCritical.apply(loss, r)
