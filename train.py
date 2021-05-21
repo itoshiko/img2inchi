@@ -53,11 +53,11 @@ def main(model_name, data, vocab, model, output):
     if model_name == "seq2seq":
         model = Img2InchiModel(config, dir_output, my_vocab)
         model.build_train(config)
-        model.train(config, train_set, val_set, lr_schedule)
+        model.train(config, train_set, val_set)
     elif model_name == "transformer":
         model = Img2InchiTransformerModel(config, dir_output, my_vocab)
         model.build_train(config)
-        model.train(config, train_set, val_set, lr_schedule)
+        model.train(config, train_set, val_set)
 
 
 if __name__ == "__main__":

@@ -56,14 +56,24 @@ class Img2InchiTransformerModel(BaseModel):
 
     def getOptimizer(self, lr_method="adam", lr=1e-3):
         if lr_method == 'adam':
-            self.optimizer = torch.optim.Adam(params=self.model.parameters(), lr=lr)
+            optimizer = torch.optim.Adam(params=self.model.parameters(), lr=lr)
         elif lr_method == 'adamax':
-            self.optimizer = torch.optim.Adamax(params=self.model.parameters(), lr=lr)
+            optimizer = torch.optim.Adamax(params=self.model.parameters(), lr=lr)
         elif lr_method == 'sgd':
-            self.optimizer = torch.optim.SGD(params=self.model.parameters(), lr=lr)
+            optimizer = torch.optim.SGD(params=self.model.parameters(), lr=lr)
         else:
             raise NotImplementedError("Unknown Optimizer {}".format(lr_method))
-        return super().getOptimizer(lr_method=lr_method, lr=lr)
+        return optimizer
+
+    def getLearningRateScheduler(self, lr_scheduler="CosineAnnealingLR"):
+        if lr_scheduler == "AwesomeScheduler":
+            d_model = self._config.transformer["d_model"]
+            warmup_steps = self._config.warmup_steps
+            lr_sc = lambda step: (d_model) ** (-0.5) * \
+                                 (min(step ** (-0.5), step * (warmup_steps ** (-0.5))))
+            return torch.optim.lr_scheduler.LambdaLR(self.optimizer, lr_sc)
+        else:
+            return super().getLearningRateScheduler(lr_scheduler)
 
     def _run_train_epoch(self, config, train_set, val_set, epoch, lr_schedule):
         """Performs an epoch of training
