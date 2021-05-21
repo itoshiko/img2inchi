@@ -70,7 +70,7 @@ class Img2InchiTransformerModel(BaseModel):
             d_model = self._config.transformer["d_model"]
             warmup_steps = self._config.warmup_steps
             lr_sc = lambda step: (d_model) ** (-0.5) * \
-                                 (min(step ** (-0.5), step * (warmup_steps ** (-0.5))))
+                                 (min((step + 1) ** (-0.5), (step + 1) * (warmup_steps ** (-0.5))))
             return torch.optim.lr_scheduler.LambdaLR(self.optimizer, lr_sc)
         else:
             return super().getLearningRateScheduler(lr_scheduler)
@@ -105,9 +105,9 @@ class Img2InchiTransformerModel(BaseModel):
             loss.backward()
             self.optimizer.step()
             losses += loss.item()
-            progress_bar.update(i + 1, [("loss", loss), ("lr", lr_schedule.lr)])
+            progress_bar.update(i + 1, [("loss", loss), ("lr", self.optimizer.param_groups[0]['lr'])])
             # update learning rate
-            lr_schedule.update(batch_no=epoch * nbatches + i)
+            lr_schedule.step()
         self.logger.info("- Training: {}".format(progress_bar.info))
         self.logger.info("- Config: (before evaluate, we need to see config)")
         config.show(fun=self.logger.info)
@@ -115,7 +115,6 @@ class Img2InchiTransformerModel(BaseModel):
         # evaluation
         scores = self.evaluate(val_set)
         score = scores["Evaluate Loss"]
-        lr_schedule.update(score=score)
 
         return score
 
