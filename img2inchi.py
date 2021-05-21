@@ -87,10 +87,10 @@ class Img2InchiModel(BaseModel):
             loss.backward()
             self.optimizer.step()
             losses += loss.item()
-            progress_bar.update(i + 1, [("loss", loss), ("lr", lr_schedule.lr)])
+            progress_bar.update(i + 1, [("loss", loss), ("lr", self.optimizer.param_groups[0]['lr'])])
 
             # update learning rate
-            lr_schedule.update(batch_no=epoch * nbatches + i)
+            lr_schedule.step()
 
         self.logger.info("- Training: {}".format(progress_bar.info))
         self.logger.info("- Config: (before evaluate, we need to see config)")
@@ -99,7 +99,6 @@ class Img2InchiModel(BaseModel):
         # evaluation
         scores = self.evaluate(val_set)
         score = scores["Evaluate Loss"]
-        lr_schedule.update(score=score)
 
         return score
 
