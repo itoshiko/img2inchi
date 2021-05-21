@@ -9,20 +9,20 @@ from pkg.utils.LRScheduler import LRSchedule
 
 
 @click.command()
+@click.option('--model_name', default="transformer",
+              help='Model to train')
 @click.option('--data', default="./config/data_small.yaml",
               help='Path to data yaml config')
-@click.option('--vocab', default="./config/vocab_small.yaml",
-              help='Path to vocab yaml config')
-@click.option('--training', default="./config/training_small.yaml",
-              help='Path to training yaml config')
-@click.option('--model', default="./config/model.yaml",
+@click.option('--model', default="",
               help='Path to model yaml config')
 @click.option('--output', default="./model weights",
               help='Path to save trained model')
-def main(data, vocab, training, model, output):
+def main(model_name, data, model, output):
     # Load configs
     dir_output = output
-    config = Config([data, vocab, training, model])
+    if model == "":
+        model = './config/' + model_name + '_config.yaml'
+    config = Config([data, model])
     my_vocab = vocabulary(root=config.path_train_root, vocab_dir=config.vocab_dir)
     config.vocab_size = my_vocab.size
 

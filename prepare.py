@@ -12,10 +12,8 @@ from pkg.utils.general import Config
               help="Path to your project root")
 @click.option('--pre_config', default="./config/data_prepare_small.yaml",
               help='Path to config yaml for data preparation')
-@click.option('--vocab_config', default="./config/vocab_small.yaml",
-              help='Path to vocab yaml config')
-def main(root, pre_config, vocab_config):
-    data_config = Config([pre_config, vocab_config])
+def main(root, pre_config):
+    data_config = Config([pre_config])
     origin_dir = data_config.origin_dir
     prcd_dir = data_config.prcd_dir
     vocab_dir = data_config.vocab_dir

@@ -13,9 +13,8 @@
 文件`prepare.py`用于对原始数据进行预处理，包括图像尺寸的调整和二值化、词表生成等，具体用法如下：
 
 ```bash
-python prepare.py --root <project_root> --pre_config <prepare_config> --vocab_config <vocab_config>
+python prepare.py --root <project_root> --pre_config <prepare_config>
 # --root 项目的根目录，默认为 "./"
-# --pre_config 数据生成与处理的配置文件的目录（根目录的相对路径），默认为 "./config/data_prepare_small.yaml"
 # --vocab_config 词表配置文件目录（根目录的相对路径），默认为 "./config/vocab_small.yaml"
 ```
 
