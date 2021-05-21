@@ -5,10 +5,10 @@ transformer:
   max_seq_len: 300
   tr_extractor: FALSE
   num_encoder_layers: 2
-  num_decoder_layers: 3
+  num_decoder_layers: 4
   d_model: 512
   nhead: 8
-  dim_feedforward: 512
+  dim_feedforward: 1024
   dropout: 0.2
 img2seq:
   img_w: 512
