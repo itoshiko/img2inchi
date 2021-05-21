@@ -190,13 +190,6 @@ class BaseModel(object):
         loss.backward()
         self.optimizer.step()
 
-    def prepare_data(self, train_set):
-        batch_size = self._config.batch_size
-        nbatches = (len(train_set) + batch_size - 1) // batch_size
-        progress_bar = ProgressBar(nbatches)
-        device = self._device
-        train_loader = get_dataLoader(train_set, batch_size=batch_size, mode='Transformer')
-        return progress_bar, device, train_loader, batch_size
 
     # ! MUST OVERWRITE
     def _run_train_epoch(self, train_set, val_set, lr_schedule):

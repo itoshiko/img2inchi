@@ -17,7 +17,7 @@ end_decay: 10000
 end_warm: 100
 lr_warm: 0.0001
 lr_min: 0.0001
-batch_size: 40
+batch_size: 32
 lr_method: 'adam'
 lr_scheduler: 'AwesomeScheduler'
 device: 'cuda:0'
@@ -26,4 +26,4 @@ n_epochs: 10
 loss_mode: ''
 SCST_predict_mode: 'greedy'
 SCST_lr: 0.00001
-gradient_accumulate_num: 2
+gradient_accumulate_num: 4
