@@ -71,10 +71,19 @@ class Img2InchiTransformerModel(BaseModel):
             d_model = self._config.transformer["d_model"]
             warmup_steps = self._config.warmup_steps
             lr_sc = lambda step: (d_model) ** (-0.5) * \
-                                 (min((step + 1) ** (-0.5), (step + 1) * (warmup_steps ** (-0.5))))
+                                 (min((step + 1) ** (-0.5), (step + 1) * (warmup_steps ** (-1.5))))
             return torch.optim.lr_scheduler.LambdaLR(self.optimizer, lr_sc)
         else:
             return super().getLearningRateScheduler(lr_scheduler)
+
+    def prepare_data(self, train_set):
+        batch_size = self._config.batch_size
+        gradient_accumulate_num = self._config.gradient_accumulate_num
+        nbatches = (len(train_set) + batch_size - 1) // (batch_size * gradient_accumulate_num)
+        progress_bar = ProgressBar(nbatches)
+        device = self._device
+        train_loader = get_dataLoader(train_set, batch_size=batch_size, mode='Transformer')
+        return progress_bar, device, train_loader, batch_size, gradient_accumulate_num
 
     def _run_train_epoch(self, train_set, val_set, lr_schedule):
         """Performs an epoch of training
@@ -88,22 +97,25 @@ class Img2InchiTransformerModel(BaseModel):
                 """
         # logging
         self.model.train()
-        progress_bar, device, train_loader, _ = self.prepare_data(train_set)
+        progress_bar, device, train_loader, _, gradient_accumulate_num = self.prepare_data(train_set)
         losses = 0
+        batch_num = len(train_loader)
         for i, (img, seq) in enumerate(train_loader):
             img = img.to(device)
             seq = seq.to(device)
             seq_input = seq[:, :-1]
             logits = self.model(img, seq_input)  # (batch_size, lenth, vocab_size)
-            self.optimizer.zero_grad()
             seq_out = seq[:, 1:]
             loss = self.criterion(logits.reshape(-1, logits.shape[-1]), seq_out.reshape(-1))
-            loss.backward()
-            self.optimizer.step()
             losses += loss.item()
-            progress_bar.update(i + 1, [("loss", loss), ("lr", self.optimizer.param_groups[0]['lr'])])
+            loss.backward()
+            if ((i + 1) % gradient_accumulate_num == 0) or (i + 1 == batch_num):
+                self.optimizer.step()
+                self.optimizer.zero_grad()
+                lr_schedule.step()
+                progress_bar.update((i + 1) // gradient_accumulate_num, 
+                                    [("loss", loss.item()), ("lr", self.optimizer.param_groups[0]['lr'])])
             # update learning rate
-            lr_schedule.step()
         self.logger.info("- Training: {}".format(progress_bar.info))
         self.logger.info("- Config: (before evaluate, we need to see config)")
         self._config.show(fun=self.logger.info)
@@ -118,7 +130,7 @@ class Img2InchiTransformerModel(BaseModel):
         self.model.eval()
         losses = 0
         with torch.no_grad():
-            progress_bar, device, test_loader, _ = self.prepare_data(test_set)
+            progress_bar, device, test_loader, _, _ = self.prepare_data(test_set)
             for i, (img, seq) in enumerate(test_loader):
                 img = img.to(device)
                 seq = seq.to(device)
@@ -145,7 +157,7 @@ class Img2InchiTransformerModel(BaseModel):
                 """
         # logging
         SCST_predict_mode = self._config.SCST_predict_mode
-        progress_bar, device, train_loader, batch_size = self.prepare_data(train_set)
+        progress_bar, device, train_loader, batch_size, _ = self.prepare_data(train_set)
         self.model.train()
         losses = 0
         scst_lr = self._config.SCST_lr
