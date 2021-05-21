@@ -199,7 +199,7 @@ def greedy_decode(decoder, encodings, seqs, sample_decode):
         decoder_hidden, decoder_cell, decoder_output = decoder.decode_step(encodings, decoder_hidden,
                                                                            decoder_cell, decoder_input)
         if sample_decode:
-            sample_i = torch.multinomial(decoder_output, 1, True)
+            sample_i = torch.multinomial(torch.softmax(decoder_output), 1, True)
             sample_i = sample_i.view(-1)
             decoded_batch[:, t] = sample_i
             decoder_input = sample_i.detach().view(-1, 1)
