@@ -90,20 +90,23 @@ class Img2InchiTransformerModel(BaseModel):
         self.model.train()
         progress_bar, device, train_loader, _ = self.prepare_data(train_set)
         losses = 0
+        gradient_accumulate_num = self._config.gradient_accumulate_num
+        
         for i, (img, seq) in enumerate(train_loader):
             img = img.to(device)
             seq = seq.to(device)
             seq_input = seq[:, :-1]
             logits = self.model(img, seq_input)  # (batch_size, lenth, vocab_size)
-            self.optimizer.zero_grad()
             seq_out = seq[:, 1:]
             loss = self.criterion(logits.reshape(-1, logits.shape[-1]), seq_out.reshape(-1))
-            loss.backward()
-            self.optimizer.step()
             losses += loss.item()
+            loss.backward()
+            if (i + 1) % gradient_accumulate_num == 0:
+                self.optimizer.step()
+                self.optimizer.zero_grad()
+                lr_schedule.step()
             progress_bar.update(i + 1, [("loss", loss), ("lr", self.optimizer.param_groups[0]['lr'])])
             # update learning rate
-            lr_schedule.step()
         self.logger.info("- Training: {}".format(progress_bar.info))
         self.logger.info("- Config: (before evaluate, we need to see config)")
         self._config.show(fun=self.logger.info)

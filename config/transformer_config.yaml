@@ -26,3 +26,4 @@ n_epochs: 10
 loss_mode: ''
 SCST_predict_mode: 'greedy'
 SCST_lr: 0.00001
+gradient_accumulate_num: 2
