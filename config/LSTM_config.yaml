@@ -6,7 +6,6 @@ img2seq:
   dim_attention: 512
   dim_embed:
   dropout: 0.1
-model_name: 'seq2seq'
 lr_init: 0.001
 start_decay: 0
 end_decay: 10000

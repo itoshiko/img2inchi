@@ -13,18 +13,21 @@ from pkg.utils.LRScheduler import LRSchedule
               help='Model to train')
 @click.option('--data', default="./config/data_small.yaml",
               help='Path to data yaml config')
+@click.option('--vocab', default="./config/vocab.yaml",
+              help='Path to vocab yaml config')
 @click.option('--model', default="",
               help='Path to model yaml config')
 @click.option('--output', default="./model weights",
               help='Path to save trained model')
-def main(model_name, data, model, output):
+def main(model_name, data, vocab, model, output):
     # Load configs
     dir_output = output
     if model == "":
         model = './config/' + model_name + '_config.yaml'
-    config = Config([data, model])
+    config = Config([data, vocab, model])
     my_vocab = vocabulary(root=config.path_train_root, vocab_dir=config.vocab_dir)
     config.vocab_size = my_vocab.size
+    config.model_name = model_name
 
     # Load datasets
     train_set = Img2SeqDataset(root=config.path_train_root,
@@ -47,11 +50,11 @@ def main(model_name, data, model, output):
                              lr_warm=config.lr_warm,
                              lr_min=config.lr_min)
     # Build model and train
-    if config.model_name == "seq2seq":
+    if model_name == "seq2seq":
         model = Img2InchiModel(config, dir_output, my_vocab)
         model.build_train(config)
         model.train(config, train_set, val_set, lr_schedule)
-    elif config.model_name == "transformer":
+    elif model_name == "transformer":
         model = Img2InchiTransformerModel(config, dir_output, my_vocab)
         model.build_train(config)
         model.train(config, train_set, val_set, lr_schedule)
