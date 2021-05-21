@@ -3,6 +3,7 @@ import time
 
 import torch
 
+from pkg.utils.general import Config
 from data_gen import get_dataLoader
 from pkg.utils.general import get_logger, init_dir
 from pkg.utils.ProgBar import ProgressBar
@@ -17,8 +18,7 @@ class BaseModel(object):
 
     def _init_relative_path(self, output_dir):
         init_dir(output_dir)
-        training_time = time.strftime("%Y-%m-%d %H.%M.%S", time.localtime())
-        self._model_dir = output_dir + "/" + training_time
+        self._model_dir = output_dir + "/" + self._config.instance
         init_dir(self._model_dir)
         self._model_path = self._model_dir + "/model.cpkt"
         self._config_export_path = self._model_dir
@@ -43,6 +43,8 @@ class BaseModel(object):
         self.device = torch.device(device if torch.cuda.is_available() else 'cpu')
         self.model = self.getModel()
         self.model = self.model.to(self.device)
+        # if model exists, load it
+        self.auto_restore()
 
     def _init_optimizer(self, lr_method="adam", lr=1e-3):
         """Defines self.optimizer that performs an update on a batch
@@ -54,6 +56,8 @@ class BaseModel(object):
         _lr_m = lr_method.lower()  # lower to make sure
         print("  - " + _lr_m)
         self.optimizer = self.getOptimizer(_lr_m, lr)
+        if self.is_resume:
+            self.optimizer.load_state_dict(self.old_model["optimizer"])
 
     def _init_scheduler(self, lr_scheduler="CosineAnnealingLR"):
         """Defines self.scheduler that performs an update on a batch
@@ -112,24 +116,32 @@ class BaseModel(object):
     # 3. save and restore
     def auto_restore(self):
         if os.path.exists(self._model_path) and os.path.isfile(self._model_path):
-            self.restore()
+            if os.path.exists(self._config_export_path + '/' + self._config.export_name):
+                old_config = Config(self._config_export_path + '/' + self._config.export_name)
+                old_model_name = old_config.model_name
+                assert(old_model_name == self._config.model_name)
+                self.is_resume = True
+                self.restore(map_location=str(self.device))
 
-    def restore(self, model_path=None, map_location='cpu'):
+    def restore(self,  map_location='cpu'):
         """Reload weights into session
         Args:
             model_path: weights path "model_weights/model.cpkt"
             map_location: 'cpu' or 'gpu:0'
         """
         self.logger.info("- Reloading the latest trained model...")
-        if model_path == None:
-            self.model.load_state_dict(torch.load(self._model_path, map_location=map_location))
-        else:
-            self.model.load_state_dict(torch.load(model_path, map_location=map_location))
+        self.old_model=torch.load(self._model_path, map_location=self.device)
+        self.model.load_state_dict(self.old_model["net"])
 
     def save(self):
         """Saves model"""
         self.logger.info("- Saving model...")
-        torch.save(self.model.state_dict(), self._model_path)
+        # save state as a dict
+        checking_point = {"net": self.model.state_dict(),
+                          "optimizer": self.optimizer.state_dict(),
+                          "epoch": self.now_epoch,
+                          "scheduler": self.scheduler.state_dict()}
+        torch.save(checking_point, self._model_path)
         self._config.save(self._config_export_path)
         self.logger.info("- Saved model in {}".format(self._model_dir))
 
@@ -148,14 +160,19 @@ class BaseModel(object):
             best_score: (float)
         """
         best_score = None
+        if self.is_resume:
+            self.now_epoch = self.old_model["epoch"]
+        else:
+            self.now_epoch = 0
 
-        for epoch in range(config.n_epochs):
+        for epoch in range(start=self.now_epoch, stop=config.n_epochs):
             # logging
             tic = time.time()
             self.logger.info("Epoch {:}/{:}".format(epoch + 1, config.n_epochs))
 
             # epoch
             score = self._run_train_epoch(train_set, val_set, self.scheduler)
+            self.now_epoch += 1
 
             # save weights if we have new best score on eval
             if best_score is None or score >= best_score:  # abs(score-0.5) <= abs(best_score-0.5):

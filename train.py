@@ -11,6 +11,8 @@ from pkg.utils.LRScheduler import LRSchedule
 @click.command()
 @click.option('--model_name', default="transformer",
               help='Model to train')
+@click.option('--instance', default="test",
+              help='Name of instance to train')
 @click.option('--data', default="./config/data_small.yaml",
               help='Path to data yaml config')
 @click.option('--vocab', default="./config/vocab.yaml",
@@ -19,7 +21,7 @@ from pkg.utils.LRScheduler import LRSchedule
               help='Path to model yaml config')
 @click.option('--output', default="./model weights",
               help='Path to save trained model')
-def main(model_name, data, vocab, model, output):
+def main(model_name, instance, data, vocab, model, output):
     # Load configs
     dir_output = output
     if model == "":
@@ -28,6 +30,7 @@ def main(model_name, data, vocab, model, output):
     my_vocab = vocabulary(root=config.path_train_root, vocab_dir=config.vocab_dir)
     config.vocab_size = my_vocab.size
     config.model_name = model_name
+    config.instance = instance
 
     # Load datasets
     train_set = Img2SeqDataset(root=config.path_train_root,
@@ -41,14 +44,6 @@ def main(model_name, data, vocab, model, output):
                                annotations_file=config.val_annotations_file,
                                vocab=my_vocab)
 
-    # Define learning rate schedule
-    n_batches_epoch = ((len(train_set) + config.batch_size - 1) // config.batch_size)
-    lr_schedule = LRSchedule(lr_init=config.lr_init,
-                             start_decay=config.start_decay * n_batches_epoch,
-                             end_decay=config.end_decay * n_batches_epoch,
-                             end_warm=config.end_warm * n_batches_epoch,
-                             lr_warm=config.lr_warm,
-                             lr_min=config.lr_min)
     # Build model and train
     if model_name == "seq2seq":
         model = Img2InchiModel(config, dir_output, my_vocab)

@@ -86,6 +86,7 @@ class Img2InchiModel(BaseModel):
                 loss = self.criterion(logits.reshape(-1, logits.shape[-1]), seq_out.reshape(-1))
             loss.backward()
             self.optimizer.step()
+            # TODO record steps
             losses += loss.item()
             progress_bar.update(i + 1, [("loss", loss), ("lr", self.optimizer.param_groups[0]['lr'])])
 
