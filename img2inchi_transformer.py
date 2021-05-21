@@ -91,7 +91,7 @@ class Img2InchiTransformerModel(BaseModel):
             seq_out = seq[:, 1:]
             loss = self.criterion(logits.reshape(-1, logits.shape[-1]), seq_out.reshape(-1))
             if loss_mode == "SCST":
-                with torch.autograd:
+                with torch.autograd():
                     SCST_predict_mode = config.SCST_predict_mode
                     gts = []
                     for i in range(batch_size):
@@ -122,10 +122,10 @@ class Img2InchiTransformerModel(BaseModel):
         self.model.eval()
         losses = 0
         with torch.no_grad():
-            nbatches = len(test_set)
             batch_size = self._config.batch_size
-            prog = ProgressBar(nbatches)
             test_loader = get_dataLoader(test_set, batch_size=batch_size, mode='Transformer')
+            nbatches = len(test_loader)
+            prog = ProgressBar(nbatches)
 
             for i, (img, seq) in enumerate(test_loader):
                 img = img.to(self._device)

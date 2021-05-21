@@ -77,7 +77,7 @@ class DecoderLayer(nn.Module):
 
         # Implementation of Feedforward model
         self.linear1 = Linear(d_model, dim_feedforward)
-        self.dropout = Dropout(dropout)
+        self.dropout = Dropout(dropout, inplace=True)
         self.linear2 = Linear(dim_feedforward, d_model)
 
         self.norm1 = LayerNorm(d_model)

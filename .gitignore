@@ -131,6 +131,7 @@ dmypy.json
 # model
 *.pth
 *.cpkt
+2021-*/
 
 # data
 *.pkl
