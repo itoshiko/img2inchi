@@ -1,4 +1,5 @@
 import torch
+from torch.optim import optimizer
 
 import model.SelfCritical as SelfCritical
 
@@ -21,7 +22,7 @@ class Img2InchiTransformerModel(BaseModel):
         super(Img2InchiTransformerModel, self).__init__(config, output_dir)
         self._vocab = vocab
         self._device = config.device
-        if self.device is None:
+        if self._device is None:
             self._device = 'cuda:0' if torch.cuda.is_available() else 'cpu'
         self.max_len = config.max_seq_len
 
@@ -75,25 +76,20 @@ class Img2InchiTransformerModel(BaseModel):
         else:
             return super().getLearningRateScheduler(lr_scheduler)
 
-    def _run_train_epoch(self, config, train_set, val_set, epoch, lr_schedule):
+    def _run_train_epoch(self, train_set, val_set, lr_schedule):
         """Performs an epoch of training
                 Args:
                     config: Config instance
                     train_set: Dataset instance
                     val_set: Dataset instance
-                    epoch: (int) id of the epoch, starting at 0
                     lr_schedule: LRSchedule instance that takes care of learning proc
                 Returns:
                     score: (float) model will select weights that achieve the highest score
                 """
         # logging
-        batch_size = config.batch_size
-        nbatches = (len(train_set) + batch_size - 1) // batch_size
-        progress_bar = ProgressBar(nbatches)
         self.model.train()
+        progress_bar, device, train_loader, _ = self.prepare_data(train_set)
         losses = 0
-        device = self._device
-        train_loader = get_dataLoader(train_set, batch_size=batch_size, mode='Transformer')
         for i, (img, seq) in enumerate(train_loader):
             img = img.to(device)
             seq = seq.to(device)
@@ -110,7 +106,7 @@ class Img2InchiTransformerModel(BaseModel):
             lr_schedule.step()
         self.logger.info("- Training: {}".format(progress_bar.info))
         self.logger.info("- Config: (before evaluate, we need to see config)")
-        config.show(fun=self.logger.info)
+        self._config.show(fun=self.logger.info)
 
         # evaluation
         scores = self.evaluate(val_set)
@@ -122,51 +118,44 @@ class Img2InchiTransformerModel(BaseModel):
         self.model.eval()
         losses = 0
         with torch.no_grad():
-            batch_size = self._config.batch_size
-            test_loader = get_dataLoader(test_set, batch_size=batch_size, mode='Transformer')
-            nbatches = len(test_loader)
-            prog = ProgressBar(nbatches)
-
+            progress_bar, device, test_loader, _ = self.prepare_data(test_set)
             for i, (img, seq) in enumerate(test_loader):
-                img = img.to(self._device)
-                seq = seq.to(self._device)
+                img = img.to(device)
+                seq = seq.to(device)
                 seq_input = seq[:, :-1]
                 logits = self.model(img, seq_input)
                 seq_out = seq[:, 1:]
                 loss = self.criterion(logits.reshape(-1, logits.shape[-1]), seq_out.reshape(-1))
                 losses += loss.item()
-                prog.update(i + 1, [("loss", losses / len(test_loader))])
+                progress_bar.update(i + 1, [("loss", losses / len(test_loader))])
 
-        self.logger.info("- Evaluating: {}".format(prog.info))
+        self.logger.info("- Evaluating: {}".format(progress_bar.info))
 
         return {"Evaluate Loss": losses / len(test_loader)}
 
-    def _run_scst_epoch(self, config, train_set, val_set, epoch, lr_schedule):
+    def _run_scst(self, train_set, val_set):
         """Performs an epoch of Self-Critical Sequence Training
                 Args:
                     config: Config instance
                     train_set: Dataset instance
-                    val_set: Dataset instance
-                    epoch: (int) id of the epoch, starting at 0
+                    val_set: Dataset instanc
                     lr_schedule: LRSchedule instance that takes care of learning proc
                 Returns:
                     score: (float) model will select weights that achieve the highest score
                 """
         # logging
-        batch_size = config.batch_size
-        SCST_predict_mode = config.SCST_predict_mode
-        nbatches = (len(train_set) + batch_size - 1) // batch_size
-        progress_bar = ProgressBar(nbatches)
+        SCST_predict_mode = self._config.SCST_predict_mode
+        progress_bar, device, train_loader, batch_size = self.prepare_data(train_set)
         self.model.train()
         losses = 0
-        device = self._device
-        train_loader = get_dataLoader(train_set, batch_size=batch_size, mode='Transformer')
+        scst_lr = self._config.SCST_lr
+        optimizer = self.getOptimizer(lr_method="adam", lr=scst_lr)
         for i, (img, seq) in enumerate(train_loader):
             img = img.to(device)
             seq = seq.to(device)
             seq_input = seq[:, :-1]
             logits = self.model(img, seq_input)  # (batch_size, lenth, vocab_size)
-            self.optimizer.zero_grad()
+            optimizer.zero_grad()
             seq_out = seq[:, 1:]
             loss = self.criterion(logits.reshape(-1, logits.shape[-1]), seq_out.reshape(-1))
             gts = []
@@ -178,19 +167,16 @@ class Img2InchiTransformerModel(BaseModel):
             r = reward["sample"] - reward["predict"]
             loss = SelfCritical.SelfCritical.apply(loss, r)
             loss.backward()
-            self.optimizer.step()
+            optimizer.step()
             losses += loss.item()
-            progress_bar.update(i + 1, [("loss", loss), ("lr", lr_schedule.lr)])
-            # update learning rate
-            lr_schedule.update(batch_no=epoch * nbatches + i)
+            progress_bar.update(i + 1, [("loss", loss), ("lr", scst_lr)])
         self.logger.info("- Training: {}".format(progress_bar.info))
         self.logger.info("- Config: (before evaluate, we need to see config)")
-        config.show(fun=self.logger.info)
+        self._config.show(fun=self.logger.info)
 
         # evaluation
         scores = self.evaluate(val_set)
         score = scores["Evaluate Loss"]
-        lr_schedule.update(score=score)
 
         return score
 

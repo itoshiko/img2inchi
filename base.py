@@ -3,7 +3,9 @@ import time
 
 import torch
 
+from data_gen import get_dataLoader
 from pkg.utils.general import get_logger, init_dir
+from pkg.utils.ProgBar import ProgressBar
 
 
 class BaseModel(object):
@@ -153,7 +155,7 @@ class BaseModel(object):
             self.logger.info("Epoch {:}/{:}".format(epoch + 1, config.n_epochs))
 
             # epoch
-            score = self._run_train_epoch(config, train_set, val_set, epoch, self.scheduler)
+            score = self._run_train_epoch(train_set, val_set, self.scheduler)
 
             # save weights if we have new best score on eval
             if best_score is None or score >= best_score:  # abs(score-0.5) <= abs(best_score-0.5):
@@ -188,15 +190,22 @@ class BaseModel(object):
         loss.backward()
         self.optimizer.step()
 
+    def prepare_data(self, train_set):
+        batch_size = self._config.batch_size
+        nbatches = (len(train_set) + batch_size - 1) // batch_size
+        progress_bar = ProgressBar(nbatches)
+        device = self._device
+        train_loader = get_dataLoader(train_set, batch_size=batch_size, mode='Transformer')
+        return progress_bar, device, train_loader, batch_size
+
     # ! MUST OVERWRITE
-    def _run_train_epoch(self, config, train_set, val_set, epoch, lr_schedule):
+    def _run_train_epoch(self, train_set, val_set, lr_schedule):
         """Model_specific method to overwrite
         Performs an epoch of training
         Args:
             config: Config
             train_set: Dataset instance
             val_set: Dataset instance
-            epoch: (int) id of the epoch, starting at 0
             lr_schedule: LRSchedule instance that takes care of learning proc
         Returns:
             score: (float) model will select weights that achieve the highest score
@@ -218,7 +227,7 @@ class BaseModel(object):
         raise NotImplementedError("Performs an epoch of evaluation")
 
     # ! MUST OVERWRITE
-    def _run_scst_epoch(self, test_set):
+    def _run_scst(self, train_set, val_set):
         """Model-specific method to overwrite
         Performs an epoch of Self-Critical Sequence Training
         Args:
