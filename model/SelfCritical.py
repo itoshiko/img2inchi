@@ -14,7 +14,7 @@ def calculate_reward(sample, predict, gt):
                 Returns:
                     reward: (dict) reward["sample"], reward["predict"]
                 """
-    with torch.no_grad:
+    with torch.no_grad():
         if sample.ndim == 1:
             sample.unsqueeze(0)
         if predict.ndim == 1:

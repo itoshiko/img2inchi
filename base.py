@@ -220,6 +220,17 @@ class BaseModel(object):
         raise NotImplementedError("Performs an epoch of evaluation")
 
     # ! MUST OVERWRITE
+    def _run_scst_epoch(self, test_set):
+        """Model-specific method to overwrite
+        Performs an epoch of Self-Critical Sequence Training
+        Args:
+            test_set: Dataset instance
+        Returns:
+            scores: (dict) scores["acc"] = 0.85 for instance
+        """
+        raise NotImplementedError("Performs an epoch of evaluation")
+
+    # ! MUST OVERWRITE
     def predict(self, img, max_len=200, mode="beam"):
         """Model-specific method to overwrite
                 Performs an epoch of evaluation
