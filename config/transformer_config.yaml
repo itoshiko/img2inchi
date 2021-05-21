@@ -10,6 +10,7 @@ transformer:
   nhead: 8
   dim_feedforward: 1024
   dropout: 0.2
+warmup_steps: 100
 lr_init: 0.001
 start_decay: 0
 end_decay: 10000
@@ -18,7 +19,7 @@ lr_warm: 0.0001
 lr_min: 0.0001
 batch_size: 40
 lr_method: 'adam'
-lr_scheduler: 'CosineAnnealingLR'
+lr_scheduler: 'AwesomeScheduler'
 device: 'cuda:0'
 criterion_method: 'CrossEntropyLoss'
 n_epochs: 10

@@ -38,14 +38,17 @@ class Img2InchiModel(BaseModel):
 
     def getOptimizer(self, lr_method="adam", lr=1e-3):
         if lr_method == 'adam':
-            self.optimizer = torch.optim.Adam(params=self.model.parameters(), lr=lr)
+            optimizer = torch.optim.Adam(params=self.model.parameters(), lr=lr)
         elif lr_method == 'adamax':
-            self.optimizer = torch.optim.Adamax(params=self.model.parameters(), lr=lr)
+            optimizer = torch.optim.Adamax(params=self.model.parameters(), lr=lr)
         elif lr_method == 'sgd':
-            self.optimizer = torch.optim.SGD(params=self.model.parameters(), lr=lr)
+            optimizer = torch.optim.SGD(params=self.model.parameters(), lr=lr)
         else:
             raise NotImplementedError("Unknown Optimizer {}".format(lr_method))
-        return super().getOptimizer(lr_method=lr_method, lr=lr)
+        return optimizer
+
+    def getLearningRateScheduler(self, lr_scheduler="CosineAnnealingLR"):
+        return super().getLearningRateScheduler(lr_scheduler)
 
     def _run_train_epoch(self, config, train_set, val_set, epoch, lr_schedule):
         """Performs an epoch of training
@@ -134,7 +137,7 @@ class Img2InchiModel(BaseModel):
             result = beam_search.beam_decode(encode_memory=encodings)
         elif mode == "greedy":
             seq = torch.ones(1, 1).fill_(SOS_ID).type(torch.long).to(self._device)
-            result = greedy_decode(self.model.decoder, encodings, seq, False)
+            result = greedy_decode(self.model.decoder, encodings, seq)
         if result.ndim == 3:
             decoded_result = []
             for i in range(result.shape[0]):

@@ -132,7 +132,7 @@ class BaseModel(object):
         self.logger.info("- Saved model in {}".format(self._model_dir))
 
     # 4. train and evaluate
-    def train(self, config, train_set, val_set, lr_schedule):
+    def train(self, config, train_set, val_set):
         """Global training procedure
         Calls method self.run_epoch and saves weights if score improves.
         All the epoch-logic including the lr_schedule update must be done in
@@ -153,20 +153,18 @@ class BaseModel(object):
             self.logger.info("Epoch {:}/{:}".format(epoch + 1, config.n_epochs))
 
             # epoch
-            score = self._run_train_epoch(config, train_set, val_set, epoch, lr_schedule)
+            score = self._run_train_epoch(config, train_set, val_set, epoch, self.scheduler)
 
             # save weights if we have new best score on eval
             if best_score is None or score >= best_score:  # abs(score-0.5) <= abs(best_score-0.5):
                 best_score = score
                 self.logger.info("- New best score ({:04.2f})!".format(best_score))
                 self.save()
-            if lr_schedule.stop_training:
-                self.logger.info("- Early Stopping.")
-                break
 
             # logging
             toc = time.time()
-            self.logger.info("- Elapsed time: {:04.2f}, learning rate: {:04.5f}".format(toc - tic, lr_schedule.lr))
+            self.logger.info("- Elapsed time: {:04.2f}, learning rate: {:04.5f}"
+                             .format(toc - tic, self.optimizer.param_groups[0]['lr']))
 
         return best_score
 
