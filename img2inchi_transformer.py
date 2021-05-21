@@ -21,7 +21,7 @@ class Img2InchiTransformerModel(BaseModel):
         super(Img2InchiTransformerModel, self).__init__(config, output_dir)
         self._vocab = vocab
         self._device = config.device
-        if self.device is None:
+        if self._device is None:
             self._device = 'cuda:0' if torch.cuda.is_available() else 'cpu'
         self.max_len = config.max_seq_len
 
