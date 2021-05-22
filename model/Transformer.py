@@ -317,6 +317,7 @@ class Img2SeqTransformer(nn.Module):
         return self.generator(outs)
 
     def init_decode_memory(self, memory: Tensor):
+        self.clear_cache()
         return self.transformer_decoder.init_decode_memory(memory=memory, device=self.device)
 
     def decode_step(self, seq: Tensor, decode_memory: list, pos: Optional[int]=None, tgt_padding_mask: Tensor=None) -> Tensor:

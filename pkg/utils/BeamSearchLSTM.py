@@ -1,5 +1,5 @@
 
-from torch import stack, topk
+import torch
 from torch.nn.functional import softmax
 from torch.nn import Module
 from torch.tensor import Tensor
@@ -12,10 +12,11 @@ class BeamSearchLSTM(BeamSearch):
     BeamSearch class for LSTM model.
     """
 
-    def __init__(self, decoder: DecoderWithAttention, device, beam_width: int=10, topk: int=1, max_len: int=200, max_batch: int=1):
-        super(BeamSearchLSTM, self).__init__(beam_width, topk, max_len, max_batch)
+    def __init__(self, decoder: DecoderWithAttention, device: str='cpu', beam_width: int=10, topk: int=1, 
+                max_len: int=200, max_batch: int=1):
+        super(BeamSearchLSTM, self).__init__(device=device, beam_width=beam_width, topk=topk, 
+                                                    max_len=max_len, max_batch=max_batch)
         self.decoder = decoder
-        self.device = device
 
     def init_decode_memory(self, encode_memory):
         '''
@@ -32,36 +33,30 @@ class BeamSearchLSTM(BeamSearch):
             decode_memory_list.append((encode_memory[k], h[k], c[k]))
         return decode_memory_list
 
-    def decode_step(self, decode_memory_list: 'list[tuple]', inputs: 'list[int]') -> 'list[list[tuple[tuple, int, float]]]':
+    def decode_step(self, decode_memory_list: 'list[tuple]', inputs: 'list[int]') -> Tensor:
         '''
         Decode for single step using decoder.decode_step.
 
         :param decode_memory_list: a list of decode memory for decode_step.
-        The decode memory is a tuple: (encode_memory/encoding, hidden state, memory cell)
+        The decode memory is a tuple: (encode_memory/encoding, hidden state, memory cell).
+        This method will directly modify this parameter after decoding.
         
-        :param inputs: a list of word_id for this step.
+        :param inputs: a list of word_id for this step as input.
 
-        :return: list[list[tuple]]. Outer list corresponding to the decode answer for each input.
-        Inner list gives the top beam_width answer. Each answer is a tuple:
-        (new_decode_memory, new_word_id, conditional_probability)
+        :return: the logits after decoding.
         '''
         batch_size = len(decode_memory_list)
         encode_memory, h, c = list(zip(*decode_memory_list))
-        enc = stack(encode_memory)
-        h   = stack(h)
-        c   = stack(c)
-        inputs = Tensor(inputs).long().to(self.device)
+        enc = torch.stack(encode_memory)
+        h   = torch.stack(h)
+        c   = torch.stack(c)
+        inputs = torch.tensor(inputs, dtype=torch.int, device=self.device)
         # decode for one step using decode_step
         h, c, outputs = self.decoder.decode_step(enc, h, c, inputs)
         del enc
-        probs = softmax(outputs, dim=1)
-        probs, indexes = topk(probs, self.beam_width, dim=1)
-        decode_answers = [
-            [((encode_memory[k], h[k], c[k]), int(indexes[j].item), float(probs[k][j].item)) 
-            for j in range(self.beam_width)]
-            for k in range(batch_size)
-        ]
-        return decode_answers
+        for k in range(batch_size):
+            decode_memory_list[k] = (encode_memory[k], h[k], c[k])
+        return outputs
 
     def beam_decode(self, encode_memory: Tensor):
         return super().beam_decode(encode_memory)

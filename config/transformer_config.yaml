@@ -10,12 +10,8 @@ transformer:
   dim_feedforward: 1024
   dropout: 0.2
 max_seq_len: 300
-warmup_steps: 100
-lr_init: 0.001
-start_decay: 0
-end_decay: 10000
-end_warm: 100
-lr_warm: 0.0001
+warmup_steps: 2000
+lr_init: 1
 lr_min: 0.0001
 batch_size: 50
 lr_method: 'adam'
@@ -26,4 +22,5 @@ n_epochs: 10
 loss_mode: ''
 SCST_predict_mode: 'greedy'
 SCST_lr: 0.00001
-gradient_accumulate_num: 4
+gradient_accumulate_num: 8
+beam_width: 5

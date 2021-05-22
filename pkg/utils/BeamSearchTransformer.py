@@ -1,8 +1,6 @@
 
-from torch import stack, topk
-from torch.cuda import memory
+import torch
 from torch.nn.functional import softmax
-from torch.nn import Module
 from torch.tensor import Tensor
 
 from pkg.utils.BeamSearch import BeamSearch
@@ -15,10 +13,11 @@ class BeamSearchTransformer(BeamSearch):
     BeamSearch class for transformer model.
     """
 
-    def __init__(self, tf_model: TransformerType, device, beam_width: int=10, topk: int=1, max_len: int=200, max_batch: int=1):
-        super(BeamSearchTransformer, self).__init__(beam_width, topk, max_len, max_batch)
+    def __init__(self, tf_model: TransformerType, device: str='cpu', beam_width: int=10, topk: int=1, 
+                max_len: int=200, max_batch: int=1):
+        super(BeamSearchTransformer, self).__init__(device=device, beam_width=beam_width, topk=topk, 
+                                                    max_len=max_len, max_batch=max_batch)
         self.model = tf_model
-        self.device = device
 
     def split_decode_memory(self, decode_memory: 'list[list[Tensor]]', batch_size: int) -> 'list[list[list[Tensor]]]':
         decode_memory_list = flatten_list(decode_memory)
@@ -30,7 +29,7 @@ class BeamSearchTransformer(BeamSearch):
     def merge_decode_memory(self, decode_memory_list: 'list[list[list[Tensor]]]'):
         decode_memory = [flatten_list(memory) for memory in decode_memory_list]
         decode_memory = list(zip(*decode_memory))
-        decode_memory = [stack(x) for x in decode_memory]
+        decode_memory = [torch.stack(x) for x in decode_memory]
         decode_memory = split_list(l=decode_memory, d=4)
         return decode_memory
 
@@ -47,37 +46,38 @@ class BeamSearchTransformer(BeamSearch):
         return self.split_decode_memory(decode_memory, batch_size)
         
 
-    def decode_step(self, decode_memory_list: 'list[list[list[Tensor]]]', inputs: 'list[int]') \
-        -> 'list[list[tuple[list[list[Tensor]], int, float]]]':
+    def decode_step(self, decode_memory_list: 'list[list[list[Tensor]]]', inputs: 'list[int]') -> Tensor:
         '''
         Decode for single step using Img2SeqTransformer.decode_step.
 
         :param decode_memory_list: a list of decode memory for decode_step.
         The decode memory is list[list[Tensor]], the outer list stores decode memory for each decode layer,
         and the inner list is the decode memory: [self_attn_key, self_attn_value, src_attn_key, src_attn_value].
+        This method will directly modify this parameter after decoding.
         
-        :param inputs: a list of word_id for this step.
+        :param inputs: a list of word_id for this step as input.
 
-        :return: list[list[tuple]]. Outer list corresponding to the decode answer for each input.
-        Inner list gives the top beam_width answer. Each answer is a tuple:
-        (new_decode_memory, new_word_id, conditional_probability)
+        :return: the logits after decoding.
         '''
         batch_size = len(decode_memory_list)
         decode_memory = self.merge_decode_memory(decode_memory_list)
-        inputs = Tensor(inputs).long().to(self.device)
+        inputs = torch.tensor(inputs, dtype=torch.int, device=self.device)
         # decode for one step using decode_step
         outputs = self.model.decode_step(seq=inputs, decode_memory=decode_memory, pos=None, tgt_padding_mask=None)
-        decode_memory_list = self.split_decode_memory(decode_memory)
-        probs = softmax(outputs, dim=1)
-        probs, indexes = topk(probs, self.beam_width, dim=1)
-        decode_answers = [
-            [(decode_memory_list[k], int(indexes[j].item), float(probs[k][j].item)) 
-            for j in range(self.beam_width)] 
-            for k in range(batch_size)
-        ]
-        return decode_answers
+        memory_list = self.split_decode_memory(decode_memory)
+        for k in range(batch_size):
+            decode_memory_list[k] = memory_list[k]
+        return outputs
 
-    def beam_decode(self, encode_memory: Tensor):
+    def beam_decode(self, encode_memory: Tensor) -> 'list[list[Tensor]]':
         ans = super().beam_decode(encode_memory)
         self.model.clear_cache()
         return ans
+
+    def greedy_decode(self, encode_memory: Tensor) -> 'list[Tensor]':
+        ans = super().greedy_decode(encode_memory)
+        self.model.clear_cache()
+        return ans
+
+    def sample_decode(self, encode_memory: Tensor) -> 'tuple[Tensor, list[Tensor]]':
+        return super().sample_decode(encode_memory)

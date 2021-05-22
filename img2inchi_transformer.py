@@ -1,4 +1,8 @@
 import torch
+from torch.optim import optimizer
+from math import ceil
+
+from torch.tensor import Tensor
 
 import model.SelfCritical as SelfCritical
 
@@ -7,8 +11,7 @@ from data_gen import get_dataLoader
 from model.Transformer import Img2SeqTransformer
 from pkg.utils.ProgBar import ProgressBar
 from pkg.utils.BeamSearchTransformer import BeamSearchTransformer
-from pkg.utils.BeamSearch import greedy_decode
-from pkg.utils.utils import num_param
+from pkg.utils.utils import flatten_list, num_param
 
 
 PAD_ID = 0
@@ -24,6 +27,13 @@ class Img2InchiTransformerModel(BaseModel):
         if self._device is None:
             self._device = 'cuda:0' if torch.cuda.is_available() else 'cpu'
         self.max_len = config.max_seq_len
+
+    def build_train(self, config):
+        res = super().build_train(config=config)
+        self.beam_search = BeamSearchTransformer(tf_model=self.model, device=self._device, beam_width=config.beam_width,
+                                                topk=1, max_len=self.max_len, max_batch=config.batch_size)
+        return res
+
 
     def getModel(self):
         feature_size_1 = self._config.transformer["feature_size_1"]
@@ -79,14 +89,13 @@ class Img2InchiTransformerModel(BaseModel):
         else:
             return super().getLearningRateScheduler(lr_scheduler)
 
-    def prepare_data(self, train_set):
-        batch_size = self._config.batch_size
+    def prepare_data(self, batch_size, data_set):
         gradient_accumulate_num = self._config.gradient_accumulate_num
-        nbatches = (len(train_set) + batch_size - 1) // (batch_size * gradient_accumulate_num)
+        nbatches = (len(data_set) + batch_size - 1) // (batch_size * gradient_accumulate_num)
         progress_bar = ProgressBar(nbatches)
         device = self._device
-        train_loader = get_dataLoader(train_set, batch_size=batch_size, mode='Transformer')
-        return progress_bar, device, train_loader, batch_size, gradient_accumulate_num
+        train_loader = get_dataLoader(data_set, batch_size=batch_size, mode='Transformer')
+        return train_loader
 
     def _run_train_epoch(self, train_set, val_set, lr_schedule):
         """Performs an epoch of training
@@ -99,9 +108,14 @@ class Img2InchiTransformerModel(BaseModel):
                 """
         # logging
         self.model.train()
-        progress_bar, device, train_loader, _, gradient_accumulate_num = self.prepare_data(train_set)
-        losses = 0
+        batch_size = self._config.batch_size
+        device = self._device
+        accumulate_num = self._config.gradient_accumulate_num
+        train_loader = self.prepare_data(batch_size, train_set)
         batch_num = len(train_loader)
+        nbatches = ceil(batch_num / accumulate_num)
+        progress_bar = ProgressBar(nbatches)
+        losses = 0
         for i, (img, seq) in enumerate(train_loader):
             img = img.to(device)
             seq = seq.to(device)
@@ -111,13 +125,14 @@ class Img2InchiTransformerModel(BaseModel):
             loss = self.criterion(logits.reshape(-1, logits.shape[-1]), seq_out.reshape(-1))
             losses += loss.item()
             loss.backward()
-            if ((i + 1) % gradient_accumulate_num == 0) or (i + 1 == batch_num):
+            if ((i + 1) % accumulate_num == 0) or (i + 1 == batch_num):
                 self.optimizer.step()
                 self.optimizer.zero_grad()
+                # update learning rate
                 lr_schedule.step()
-                progress_bar.update((i + 1) // gradient_accumulate_num, 
+                progress_bar.update((i + 1) // accumulate_num, 
                                     [("loss", loss.item()), ("lr", self.optimizer.param_groups[0]['lr'])])
-            # update learning rate
+        self.logger.info("- Training loss: {}".format(losses / batch_num))
         self.logger.info("- Training: {}".format(progress_bar.info))
         self.logger.info("- Config: (before evaluate, we need to see config)")
         self._config.show(fun=self.logger.info)
@@ -132,7 +147,11 @@ class Img2InchiTransformerModel(BaseModel):
         self.model.eval()
         losses = 0
         with torch.no_grad():
-            progress_bar, device, test_loader, _, _ = self.prepare_data(test_set)
+            batch_size = self._config.batch_size
+            device = self._device
+            test_loader = self.prepare_data(batch_size, test_set)
+            nbatches = len(test_loader)
+            progress_bar = ProgressBar(nbatches)
             for i, (img, seq) in enumerate(test_loader):
                 img = img.to(device)
                 seq = seq.to(device)
@@ -158,28 +177,31 @@ class Img2InchiTransformerModel(BaseModel):
                     score: (float) model will select weights that achieve the highest score
                 """
         # logging
-        SCST_predict_mode = self._config.SCST_predict_mode
-        progress_bar, device, train_loader, batch_size, _ = self.prepare_data(train_set)
         self.model.train()
-        losses = 0
+        batch_size = self._config.batch_size
+        device = self._device
+        SCST_predict_mode = self._config.SCST_predict_mode
         scst_lr = self._config.SCST_lr
+        train_loader = self.prepare_data(batch_size, train_set)
+        nbatches = len(train_loader)
+        progress_bar = ProgressBar(nbatches)
+        losses = 0
         optimizer = self.getOptimizer(lr_method="adam", lr=scst_lr)
         for i, (img, seq) in enumerate(train_loader):
             img = img.to(device)
             seq = seq.to(device)
             seq_input = seq[:, :-1]
-            logits = self.model(img, seq_input)  # (batch_size, lenth, vocab_size)
             optimizer.zero_grad()
             seq_out = seq[:, 1:]
-            loss = self.criterion(logits.reshape(-1, logits.shape[-1]), seq_out.reshape(-1))
             gts = []
             for i in range(batch_size):
                 gts.append(self._vocab.decode(seq[i, :]))
-            sampled_seq = self.sample(img)
+            logits, sampled_seq = self.sample(img)
+
+            loss = self.criterion(logits.reshape(-1, logits.shape[-1]), seq_out.reshape(-1))
             predict_seq = self.predict(img, mode=SCST_predict_mode)
             reward = SelfCritical.calculate_reward(sampled_seq, predict_seq, gts)
-            r = reward["sample"] - reward["predict"]
-            loss = SelfCritical.SelfCritical.apply(loss, r)
+            loss *= reward["sample"] - reward["predict"]
             loss.backward()
             optimizer.step()
             losses += loss.item()
@@ -194,50 +216,23 @@ class Img2InchiTransformerModel(BaseModel):
 
         return score
 
-    def predict(self, img, mode="beam"):
+    def predict(self, img: Tensor, mode: str="beam") -> 'list[Tensor]':
         img = img.to(self._device)
         model = self.model
-        encodings = model.encode(img)
         result = None
-        if mode == "beam":
-            beam_search = BeamSearchTransformer(decoder=self.model.decoder, device=self._device, beam_width=10,
-                                            topk=1, max_len=self.max_len, max_batch=100)
-            result = beam_search.beam_decode(encode_memory=encodings)
-        elif mode == "greedy":
-            seq = torch.ones(1, 1).fill_(SOS_ID).type(torch.long).to(self._device)
-            result = greedy_decode(self.model.decoder, encodings, seq, False)
-        if result.ndim == 3:
-            decoded_result = []
-            for i in range(result.shape[0]):
-                for j in range(result.shape[1]):
-                    decoded_result.append(self._vocab.decode(result[i, j, :]))
-            decoded_tensor = torch.Tensor(decoded_result)
-            decoded_tensor.view(result.shape[0], result.shape[1])
-            return decoded_tensor
-        elif result.ndim == 2:
-            decoded_result = []
-            for i in range(result.shape[0]):
-                decoded_result.append(self._vocab.decode(result[i, :]))
-            decoded_tensor = torch.Tensor(decoded_result)
-            return decoded_tensor
+        with torch.no_grad():
+            encodings = model.encode(img)
+            if mode == "beam":
+                result = self.beam_search.beam_decode(encode_memory=encodings)
+                result = flatten_list(result)
+            elif mode == "greedy":
+                result = self.beam_search.greedy_decode(encode_memory=encodings)
+        return result
 
     def sample(self, img):
         img = img.to(self._device)
         model = self.model
         encodings = model.encode(img)
-        seq = torch.ones(1, 1).fill_(SOS_ID).type(torch.long).to(self._device)
-        result = greedy_decode(self.model.decoder, encodings, seq, True)
-        sampled_result = []
-        if result.ndim == 3:
-            for i in range(result.shape[0]):
-                for j in range(result.shape[1]):
-                    sampled_result.append(self._vocab.decode(result[i, j, :]))
-            sampled_tensor = torch.Tensor(sampled_result)
-            sampled_tensor.view(result.shape[0], result.shape[1])
-            return sampled_tensor
-        elif result.ndim == 2:
-            for i in range(result.shape[0]):
-                sampled_result.append(self._vocab.decode(result[i, :]))
-            sampled_tensor = torch.Tensor(sampled_result)
-            return sampled_tensor
+        result = self.beam_search.sample_decode(encode_memory=encodings)
+        return result
 

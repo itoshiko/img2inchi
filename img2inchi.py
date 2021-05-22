@@ -5,8 +5,7 @@ from data_gen import get_dataLoader
 from model.Img2Seq import Img2Seq
 from pkg.utils.ProgBar import ProgressBar
 from pkg.utils.BeamSearchLSTM import BeamSearchLSTM
-from pkg.utils.BeamSearch import greedy_decode
-from pkg.utils.utils import num_param
+from pkg.utils.utils import flatten_list, num_param
 
 PAD_ID = 0
 SOS_ID = 1
@@ -17,7 +16,12 @@ class Img2InchiModel(BaseModel):
     def __init__(self, config, output_dir, vocab, need_output=True):
         super(Img2InchiModel, self).__init__(config, output_dir, need_output=need_output)
         self._vocab = vocab
-        self._device = 'cuda:0' if torch.cuda.is_available() else 'cpu'
+        self._device = config.device
+        if self._device is None:
+            self._device = 'cuda:0' if torch.cuda.is_available() else 'cpu'
+        self.max_len = config.max_seq_len
+        self.beam_search = BeamSearchLSTM(decoder=self.model.decoder, device=self._device, beam_width=config.beam_width,
+                                                topk=1, max_len=self.max_len, max_batch=config.batch_size)
 
     def getModel(self):
         img_w = self._config.img2seq['img_w']
@@ -129,29 +133,15 @@ class Img2InchiModel(BaseModel):
     def predict(self, img, max_len=200, mode="beam"):
         img = img.to(self._device)
         model = self.model
-        encodings = model.encode(img)
         result = None
-        if mode == "beam":
-            beam_search = BeamSearchLSTM(decoder=self.model.decoder, device=self._device, beam_width=10,
-                                            topk=1, max_len=max_len, max_batch=100)
-            result = beam_search.beam_decode(encode_memory=encodings)
-        elif mode == "greedy":
-            seq = torch.ones(1, 1).fill_(SOS_ID).type(torch.long).to(self._device)
-            result = greedy_decode(self.model.decoder, encodings, seq)
-        if result.ndim == 3:
-            decoded_result = []
-            for i in range(result.shape[0]):
-                for j in range(result.shape[1]):
-                    decoded_result.append(self._vocab.decode(result[i, j, :]))
-            decoded_tensor = torch.Tensor(decoded_result)
-            decoded_tensor.view(result.shape[0], result.shape[1])
-            return decoded_tensor
-        elif result.ndim == 2:
-            decoded_result = []
-            for i in range(result.shape[0]):
-                decoded_result.append(self._vocab.decode(result[i, :]))
-            decoded_tensor = torch.Tensor(decoded_result)
-            return decoded_tensor
+        with torch.no_grad():
+            encodings = model.encode(img)
+            if mode == "beam":
+                result = self.beam_search.beam_decode(encode_memory=encodings)
+                result = flatten_list(result)
+            elif mode == "greedy":
+                result = self.beam_search.greedy_decode(encode_memory=encodings)
+        return result
 
     def sample(self, encodings):
         # TODO implement sampling method
