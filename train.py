@@ -46,11 +46,11 @@ def main(model_name, instance, data, vocab, model, output):
 
     # Build model and train
     if model_name == "seq2seq":
-        model = Img2InchiModel(config, dir_output, my_vocab)
+        model = Img2InchiModel(config, dir_output, my_vocab, need_output=True)
         model.build_train(config)
         model.train(config, train_set, val_set)
     elif model_name == "transformer":
-        model = Img2InchiTransformerModel(config, dir_output, my_vocab)
+        model = Img2InchiTransformerModel(config, dir_output, my_vocab, need_output=True)
         model.build_train(config)
         model.train(config, train_set, val_set)
 

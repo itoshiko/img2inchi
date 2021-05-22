@@ -14,8 +14,8 @@ EOS_ID = 2
 
 
 class Img2InchiModel(BaseModel):
-    def __init__(self, config, output_dir, vocab):
-        super(Img2InchiModel, self).__init__(config, output_dir)
+    def __init__(self, config, output_dir, vocab, need_output=True):
+        super(Img2InchiModel, self).__init__(config, output_dir, need_output=need_output)
         self._vocab = vocab
         self._device = 'cuda:0' if torch.cuda.is_available() else 'cpu'
 

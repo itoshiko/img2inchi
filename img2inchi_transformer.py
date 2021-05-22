@@ -17,8 +17,8 @@ EOS_ID = 2
 
 
 class Img2InchiTransformerModel(BaseModel):
-    def __init__(self, config, output_dir, vocab):
-        super(Img2InchiTransformerModel, self).__init__(config, output_dir)
+    def __init__(self, config, output_dir, vocab, need_output=True):
+        super(Img2InchiTransformerModel, self).__init__(config, output_dir, need_output=need_output)
         self._vocab = vocab
         self._device = config.device
         if self._device is None:
