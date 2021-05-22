@@ -55,7 +55,8 @@ class Config:
     def save(self, dir_name):
         init_dir(dir_name)
         file_name = dir_name + '/' + self.export_name
-        yaml.dump(self.__dict__, file_name)
+        f = open(file_name, "w")
+        yaml.dump(self.__dict__, f)
 
     def show(self, fun=print):
         if type(self.source) is list:

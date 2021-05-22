@@ -75,6 +75,7 @@ class Img2InchiTransformerModel(BaseModel):
             # if resume, restore lr
             if self.is_resume:
                 scheduler.load_state_dict(self.old_model["scheduler"])
+            return scheduler
         else:
             return super().getLearningRateScheduler(lr_scheduler)
 

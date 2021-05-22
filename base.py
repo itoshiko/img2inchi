@@ -119,9 +119,14 @@ class BaseModel(object):
             if os.path.exists(self._config_export_path + '/' + self._config.export_name):
                 old_config = Config(self._config_export_path + '/' + self._config.export_name)
                 old_model_name = old_config.model_name
-                assert(old_model_name == self._config.model_name)
+                assert(old_model_name == self._config.model_name), "Type of restored model not match command line input"
+                self.logger.info("  - found trained model, try to restore...")
                 self.is_resume = True
                 self.restore(map_location=str(self.device))
+                return
+        self.is_resume = False
+        self.logger.info("  - didn't find trained model, build a new one...")
+
 
     def restore(self,  map_location='cpu'):
         """Reload weights into session
@@ -165,7 +170,7 @@ class BaseModel(object):
         else:
             self.now_epoch = 0
 
-        for epoch in range(start=self.now_epoch, stop=config.n_epochs):
+        for epoch in range(self.now_epoch, config.n_epochs):
             # logging
             tic = time.time()
             self.logger.info("Epoch {:}/{:}".format(epoch + 1, config.n_epochs))
