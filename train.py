@@ -41,14 +41,6 @@ def main(model_name, data, vocab, model, output):
                                annotations_file=config.val_annotations_file,
                                vocab=my_vocab)
 
-    # Define learning rate schedule
-    n_batches_epoch = ((len(train_set) + config.batch_size - 1) // config.batch_size)
-    lr_schedule = LRSchedule(lr_init=config.lr_init,
-                             start_decay=config.start_decay * n_batches_epoch,
-                             end_decay=config.end_decay * n_batches_epoch,
-                             end_warm=config.end_warm * n_batches_epoch,
-                             lr_warm=config.lr_warm,
-                             lr_min=config.lr_min)
     # Build model and train
     if model_name == "seq2seq":
         model = Img2InchiModel(config, dir_output, my_vocab)

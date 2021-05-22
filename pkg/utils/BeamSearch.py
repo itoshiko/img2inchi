@@ -1,15 +1,17 @@
 import heapq
-from typing import Optional
+
+from torch.nn.functional import softmax
+from pkg.utils.vocab import SOS
+from typing import Callable, Optional, TypeVar
 
 import torch
 import numpy as np
-from torch.tensor import Tensor
+from torch import Tensor, LongTensor
 from pkg.utils.utils import flatten_list
 
-PAD_ID = 0
-SOS_ID = 1
-EOS_ID = 2
-device = torch.device('cuda:0' if torch.cuda.is_available() else 'cpu')
+PAD_ID: int = 0
+SOS_ID: int = 1
+EOS_ID: int = 2
 
 class BeamSearchNode(object):
     """
@@ -41,8 +43,8 @@ class BeamSearchNode(object):
     def __lt__(self, other):
         return self.prob < other.prob
 
-
-def _delete_by_index(list1, index):
+T = TypeVar('T')
+def _delete_by_index(list1: 'list[T]', index: 'list[int]') -> 'list[T]':
     index = list(set(range(len(list1))) - set(index))
     return [list1[i] for i in index]
 
@@ -54,7 +56,7 @@ class BeamSearch(object):
     Then you can use beam_decode method for beam search decoding.
     """
 
-    def __init__(self, beam_width: int=10, topk: int=1, max_len: int=200, max_batch: int=1):
+    def __init__(self, device: str='cpu', beam_width: int=10, topk: int=1, max_len: int=200, max_batch: int=1):
         """
         :param decoder: decoder of network that will be used to decode.
         """
@@ -63,34 +65,28 @@ class BeamSearch(object):
         self.topk = topk
         self.max_len = max_len
         self.max_batch = max_batch
+        self.device = device
 
     def beam_decode(self, encode_memory: Tensor) -> 'list[list[Tensor]]':
         """
-        Run beam search and decode the encode_memory.
+        Run beam search and decode the encode_memory (with no gradient).
 
         :param encode_memory: encodings, encoder output
         :param beam_width: width of beam search
         :return: a list of beam_decode answers. Each element is a list of the topk decoded seq of each batch.
         The outer list is arranged by batch order, the inner list is arranged by decending order of scores.
         """
-        dim_encoder = encode_memory.shape[-1]
-        if encode_memory.ndim == 3:  # single input, add batch=1
-            encode_memory = encode_memory.unsqueeze(0).view(1, -1, dim_encoder)
-        elif encode_memory.ndim == 4:  # batch mode
-            batch_size = encode_memory.shape[0]
-            encode_memory = encode_memory.view(batch_size, -1, dim_encoder)
-        else:
-            raise NotImplementedError("Unknown num of dims: {}".format(encode_memory.ndim))
         batch_size = encode_memory.shape[0]
-        decoded_batch = []
+        decoded_batch: list[list[Tensor]] = []
         
 
-        nodes = []  # store all the active nodes for each seq in batch. 2d list
-        end_nodes = [[] * batch_size]   # store all the ended nodes for each seq. 2d list
+        nodes: list[list[BeamSearchNode]] = []  # store all the active nodes for each seq in batch. 2d list
+        end_nodes: list[list[BeamSearchNode]] = [[] * batch_size]   # store all the ended nodes for each seq. 2d list
 
         # Initialize decode_memory
         # Start with the start of the sentence token for each seq
-        for k, decode_memory in enumerate(self.init_decode_memory(encode_memory=encode_memory)):
+        init_memory = self.init_decode_memory(encode_memory=encode_memory)
+        for k, decode_memory in enumerate(init_memory):
             nodes.append([BeamSearchNode(decode_memory=decode_memory, wordId=SOS_ID, prob=1, parent=None, batch_id=k)])
 
         # decode
@@ -111,19 +107,69 @@ class BeamSearch(object):
 
                 # delete all ended node from active nodes
                 nodes[k] = _delete_by_index(nodes[k], end_id)
+            if all([len(_nodes) == 0 for _nodes in nodes]):
+                break
 
         # process the decoded seqs
         for k in range(batch_size):
             num_rem =  self.topk - end_nodes[k]
             if num_rem > 0:
                 end_nodes[k] += nodes[k][:num_rem]
-            end_nodes.sort(reverse=True)
-            decode_seq = []
-            for node in end_nodes[k]:
-                decode_seq.append(Tensor(node.seq).long())
+            decode_seq = [
+                torch.tensor(node.seq, dtype=torch.int, device=self.device)
+                for node in end_nodes[k]
+            ]
             decoded_batch.append(decode_seq)
     
         return decoded_batch
+
+    def decode_with_width_one(self, encode_memory: Tensor, choose_func: Callable[[Tensor], LongTensor]) -> 'list[Tensor]':
+        batch_size = encode_memory.shape[0]
+        seqs = [[SOS_ID] for _ in range(batch_size)]
+        inputs = [SOS_ID for _ in range(batch_size)]
+        batch_id = list(range(batch_size))
+        
+        decode_memory_list = self.init_decode_memory(encode_memory=encode_memory)
+        # decode
+        for _ in range(self.max_len):
+            probs = self.decode_step(decode_memory_list=decode_memory_list, inputs=inputs)
+            indexes = choose_func(probs)
+            del_ind = []
+            for k in range(len(inputs)):
+                inputs[k] = int(indexes[k].item())
+                seqs[batch_id[k]].append(inputs[k])
+                if inputs[k] == EOS_ID:
+                    del_ind.append(k)
+            decode_memory_list = _delete_by_index(decode_memory_list, del_ind)
+            inputs = _delete_by_index(inputs, del_ind)
+            batch_id = _delete_by_index(batch_id, del_ind)
+            if len(inputs) == 0:
+                break
+        return [torch.tensor(seq, dtype=torch.int, device=self.device) for seq in seqs]
+
+    def greedy_decode(self, encode_memory: Tensor) -> 'list[Tensor]':
+        greedy_func = lambda logits: torch.max(logits, dim=1)[1]
+        return self.decode_with_width_one(encode_memory=encode_memory, choose_func=greedy_func)
+
+    def sample_decode(self, encode_memory: Tensor, gts: Tensor, forcing_num: int) -> 'tuple[Tensor, list[Tensor]]':
+        global logits_list, i, end
+        logits_list = []
+        i = 0
+        def _sample_func(logits):
+            global logits_list, i, end
+            logits_list.append(logits)
+            if i < forcing_num:
+                res = gts[:, i]
+                end = res != PAD_ID
+                res = res[end]
+            else:
+                res = torch.multinomial(softmax(logits), num_samples=1, replacement=True)
+            i += 1
+            return res
+        result = self.decode_with_width_one(encode_memory=encode_memory, choose_func=_sample_func)
+        logits = torch.cat(logits_list, dim=1)
+        del logits_list, i, end
+        return logits, result
 
     def expand_nodes(self, nodes: 'list[list[BeamSearchNode]]') -> 'list[list[BeamSearchNode]]':
         """
@@ -138,18 +184,21 @@ class BeamSearch(object):
         read_node = lambda node: (node.decode_memory, node.seq[-1])
         max_batch = self.max_batch
         batch_size = len(nodes)
-        next_nodes = [[] * max_batch]
+        next_nodes: list[list[BeamSearchNode]] = [[] * max_batch]
 
         nodes = flatten_list(nodes)   # flatten
-
+        
         for i in range(0, len(nodes), max_batch):
             batch_nodes = nodes[i:i + max_batch]
             decode_memory_list, inputs = list(zip(*[read_node(node) for node in batch_nodes]))
-            decode_answers = self.decode_step(decode_memory_list=decode_memory_list, inputs=inputs)
-            for k, decode_ans_list in enumerate(decode_answers):
+            logits = self.decode_step(decode_memory_list=decode_memory_list, inputs=inputs)
+            probs = softmax(logits, dim=1)
+            probs, indexes = torch.topk(probs, self.beam_width, dim=1)
+            for k, decode_memory in enumerate(decode_memory_list):
                 next_nodes[batch_nodes[k].batch_id] += [
-                    BeamSearchNode(*decode_ans, parent=batch_nodes[k])
-                    for decode_ans in decode_ans_list
+                    BeamSearchNode(decode_memory=decode_memory, wordId=int(indexes[j].item()), 
+                                    prob=float(probs[k][j].item()), parent=batch_nodes[k])
+                    for j in range(self.beam_width)
                 ]
 
         for k in range(batch_size):
@@ -166,20 +215,20 @@ class BeamSearch(object):
         '''
         raise NotImplementedError("Method 'init_decode_memory' isn't implemented.")
 
-    def decode_step(self, decode_memory_list: list, inputs: 'list[int]') -> 'list[list[tuple]]':
+    def decode_step(self, decode_memory_list: list, inputs: 'list[int]') -> Tensor:
         '''
         Decode for single step. This method should implemented by subclass.
 
         :param decode_memory_list: a list of decode memory for decode_step.
-        :param inputs: a list of word_id for this step.
+        This method will directly modify this parameter after decoding.
 
-        :return: list[list[tuple]]. Outer list corresponding to the decode answer for each input.
-        Inner list gives the top beam_width answer. Each answer is a tuple:
-        (new_decode_memory, new_word_id, conditional_probability)
+        :param inputs: a list of word_id for this step as input.
+
+        :return: the logits after decoding.
         '''
         raise NotImplementedError("Method 'decode_step' isn't implemented.")
 
-
+'''
 def greedy_decode(decoder, encodings, seqs, sample_decode):
     dim_encoder = encodings.shape[-1]
     if encodings.ndim == 3:  # single input, add batch=1
@@ -210,3 +259,4 @@ def greedy_decode(decoder, encodings, seqs, sample_decode):
             decoder_input = top_i.detach().view(-1, 1)
 
     return decoded_batch
+'''

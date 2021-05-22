@@ -231,7 +231,7 @@ class DecoderWithAttention(nn.Module):
             del preds
 
         return predictions
-
+  
 
 class Img2Seq(nn.Module):
     def __init__(self, img_w, img_h, vocab_size, dim_encoder, dim_decoder, dim_attention, dim_embed, dropout=0.5):
