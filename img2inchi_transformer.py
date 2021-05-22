@@ -20,8 +20,8 @@ EOS_ID = 2
 
 
 class Img2InchiTransformerModel(BaseModel):
-    def __init__(self, config, output_dir, vocab):
-        super(Img2InchiTransformerModel, self).__init__(config, output_dir)
+    def __init__(self, config, output_dir, vocab, need_output=True):
+        super(Img2InchiTransformerModel, self).__init__(config, output_dir, need_output=need_output)
         self._vocab = vocab
         self._device = config.device
         if self._device is None:
@@ -81,7 +81,11 @@ class Img2InchiTransformerModel(BaseModel):
             warmup_steps = self._config.warmup_steps
             lr_sc = lambda step: (d_model) ** (-0.5) * \
                                  (min((step + 1) ** (-0.5), (step + 1) * (warmup_steps ** (-1.5))))
-            return torch.optim.lr_scheduler.LambdaLR(self.optimizer, lr_sc)
+            scheduler = torch.optim.lr_scheduler.LambdaLR(self.optimizer, lr_sc)
+            # if resume, restore lr
+            if self.is_resume:
+                scheduler.load_state_dict(self.old_model["scheduler"])
+            return scheduler
         else:
             return super().getLearningRateScheduler(lr_scheduler)
 
@@ -96,7 +100,6 @@ class Img2InchiTransformerModel(BaseModel):
     def _run_train_epoch(self, train_set, val_set, lr_schedule):
         """Performs an epoch of training
                 Args:
-                    config: Config instance
                     train_set: Dataset instance
                     val_set: Dataset instance
                     lr_schedule: LRSchedule instance that takes care of learning proc

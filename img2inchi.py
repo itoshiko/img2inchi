@@ -13,8 +13,8 @@ EOS_ID = 2
 
 
 class Img2InchiModel(BaseModel):
-    def __init__(self, config, output_dir, vocab):
-        super(Img2InchiModel, self).__init__(config, output_dir)
+    def __init__(self, config, output_dir, vocab, need_output=True):
+        super(Img2InchiModel, self).__init__(config, output_dir, need_output=need_output)
         self._vocab = vocab
         self._device = config.device
         if self._device is None:
@@ -90,6 +90,7 @@ class Img2InchiModel(BaseModel):
                 loss = self.criterion(logits.reshape(-1, logits.shape[-1]), seq_out.reshape(-1))
             loss.backward()
             self.optimizer.step()
+            # TODO record steps
             losses += loss.item()
             progress_bar.update(i + 1, [("loss", loss), ("lr", self.optimizer.param_groups[0]['lr'])])
 

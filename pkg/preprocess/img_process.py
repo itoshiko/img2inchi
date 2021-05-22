@@ -3,6 +3,7 @@ from pkg.utils.utils import join, read_img, save_img
 
 import cv2
 
+
 def pad_resize(img, config):
     h, w = img.shape
     pad_h, pad_v = 0, 0
@@ -31,7 +32,7 @@ def prc_img(img_id, source_root="train", target_root="prcd_data", config=None):
     img[np.where(img > config["threshold"])] = 255
     img[np.where(img <= config["threshold"])] = 0
     save_img(img=img, root=target_root, img_id=img_id)
-    
+
     '''
     if DEBUG:
         cv2.namedWindow("Image")
