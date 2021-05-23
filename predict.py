@@ -45,8 +45,8 @@ def interactive_shell(model):
             _, img = pre_process(img)
             img = torch.from_numpy(img).float()
             img = img.repeat(1, 3, 1, 1)
-            result = model.predict(img, mode="greedy")
-            model.logger.info(result[0])
+            result = model.predict(img, mode="beam")
+            print(result[0])
         if os.path.isdir(img_path):
             img_list = []
             for root, dirs, files in os.walk(img_path):
