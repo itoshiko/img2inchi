@@ -136,6 +136,9 @@ class vocab():
             else:
                 inchi += self.int_to_vocab[int(token)]
         return inchi
+    
+    def decode_batch(self, seqs):
+        return [self.decode(seq) for seq in seqs]
 
     def get_vocab(self):
         root = self.root
