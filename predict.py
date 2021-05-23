@@ -45,7 +45,7 @@ def interactive_shell(model):
             _, img = pre_process(img)
             img = torch.from_numpy(img).float()
             img = img.repeat(1, 3, 1, 1)
-            result = model.predict(img, mode="beam")
+            result = model.predict(img, mode="greedy")
             model.logger.info(result[0])
         if os.path.isdir(img_path):
             img_list = []
@@ -57,7 +57,7 @@ def interactive_shell(model):
                     img = img.repeat(3, 1, 1)
                     img_list.append(img)
             img_list = torch.from_numpy(img_list).float()
-            result = model.predict(img_list, max_len=300, mode="beam")
+            result = model.predict(img_list, max_len=300, mode="greedy")
             for i in range(model.shape[0]):
                 model.logger.info(result[i])
 

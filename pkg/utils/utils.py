@@ -4,9 +4,11 @@ from numpy import array, ndarray
 
 try:
     import cv2
+
     has_cv2 = True
 except:
     from PIL import Image
+
     has_cv2 = False
 
 
@@ -25,20 +27,24 @@ def _join(path1: str, path2: str):
         p2 = path2
     return p1 + '/' + p2
 
+
 def join(*paths):
     p = ''
     for path in paths:
         p = _join(p, path)
     return p
 
+
 def create_dirs(root, *subdirs):
     path = join(root, *subdirs)
     makedirs(path, exist_ok=True)
 
+
 def get_img_path(root, img_id, format='png'):
     return join(root, img_id[0], img_id[1], img_id[2], f'{img_id}.{format}')
 
-def read_img(root: str, img_id: str, mode: str='GRAY') -> ndarray:
+
+def read_img(root: str, img_id: str, mode: str = 'GRAY') -> ndarray:
     '''
     read image by cv2/PIL
     :param root: the image file's root
@@ -87,10 +93,13 @@ def num_param(model):
         num += n
     return num
 
+
 T = TypeVar('T')
+
 
 def split_list(l: Union['list[T]', 'tuple[T]'], d: int) -> 'list[list[T]]':
     return [l[i:i + d] for i in range(0, len(l), d)]
+
 
 def flatten_list(l: 'list[list[T]]') -> 'list[T]':
     return sum(l, [])
