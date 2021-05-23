@@ -11,6 +11,7 @@ from pkg.utils.general import get_logger, init_dir
 class BaseModel(object):
     def __init__(self, config, output_dir, need_output=True):
         self._config = config
+        self.device = torch.device(config.device if torch.cuda.is_available() else 'cpu')
         if need_output:
             self._output_dir = output_dir
             self._init_relative_path(output_dir)
@@ -27,28 +28,16 @@ class BaseModel(object):
 
     def build_train(self, config=None):
         self.logger.info("- Building model...")
-        self._init_model(config.model_name, config.device)
+        self._init_model(config.model_name, self.device)
         self._init_optimizer(config.lr_method, config.lr_init)
         self._init_scheduler(config.lr_scheduler)
         self._init_criterion(config.criterion_method)
 
         self.logger.info("- done.")
 
-    def build_pred(self, model_path, config=None):
-        self.logger.info("- Building model...")
-        self.logger.info("   - " + config.model_name)
-        self.logger.info("   - " + config.device)
-        self.device = torch.device(config.device if torch.cuda.is_available() else 'cpu')
-        self.model = self.getModel()
-        self.model = self.model.to(self.device)
-        model_from_disk = torch.load(model_path, map_location=self.device)
-        self.model.load_state_dict(model_from_disk["net"])
-        self.logger.info("- done.")
-
-    def _init_model(self, model_name="CNN", device="cpu"):
+    def _init_model(self, model_name="transformer"):
         self.logger.info("   - " + model_name)
-        self.logger.info("   - " + device)
-        self.device = torch.device(device if torch.cuda.is_available() else 'cpu')
+        self.logger.info("   - " + str(self.device))
         self.model = self.getModel()
         self.model = self.model.to(self.device)
         # if model exists, load it

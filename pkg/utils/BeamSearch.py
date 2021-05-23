@@ -126,7 +126,7 @@ class BeamSearch(object):
         return decoded_batch
 
     def decode_with_width_one(
-            self, encode_memory: Tensor, choose_func: Callable[[Tensor, 'list[BeamSearchNode]'], 'tuple[Tensor, LongTensor]']
+            self, encode_memory: Tensor, choose_func: Callable[[Tensor], 'tuple[Tensor, LongTensor]']
         ) -> 'list[Tensor]':
         if encode_memory.ndim == 2:
             encode_memory = encode_memory.unsqueeze(0)
@@ -161,30 +161,42 @@ class BeamSearch(object):
         return [torch.tensor(seq, dtype=torch.int, device=self.device) for seq in seqs]
 
     def greedy_decode(self, encode_memory: Tensor) -> 'list[Tensor]':
-        def greedy_func(logits, nodes):
+        def greedy_func(logits):
             probs = softmax(logits, dim=-1)
             return torch.max(probs, dim=-1)
         return self.decode_with_width_one(encode_memory=encode_memory, choose_func=greedy_func)
 
-    def sample_decode(self, encode_memory: Tensor, gts: Tensor, forcing_num: int) -> 'tuple[Tensor, list[Tensor]]':
-        global logits_list, i, end
+    def sample(self, encode_memory: Tensor, gts: Tensor, forcing_num: int) -> 'tuple[Tensor, list[Tensor]]':
         logits_list = []
-        i = 0
-        def _sample_func(logits, nodes):
-            global logits_list, i, end
+        if encode_memory.ndim == 2:
+            encode_memory = encode_memory.unsqueeze(0)
+        batch_size = encode_memory.shape[0]
+        N = gts.shape[1]
+        inputs: list[int] = [SOS_ID for _ in range(batch_size)]
+        seqs: list[list[int]] = [[] for _ in range(batch_size)]
+
+        # Initialize decode_memory
+        # Start with the start of the sentence token for each seq
+        decode_memory_list = self.init_decode_memory(encode_memory=encode_memory)
+
+        # decode
+        for t in range(N):
+            logits = self.decode_step(decode_memory_list=decode_memory_list, inputs=inputs)
             logits_list.append(logits)
-            if i < forcing_num:
-                res = gts[:, i]
-                end = res != PAD_ID
-                res = res[end]
+            if t < forcing_num:
+                for k in range(batch_size):
+                    inputs[k] = int(gts[k, t].item())
             else:
-                res = torch.multinomial(softmax(logits), num_samples=1, replacement=True)
-            i += 1
-            return res
-        result = self.decode_with_width_one(encode_memory=encode_memory, choose_func=_sample_func)
-        logits = torch.cat(logits_list, dim=0)
-        del logits_list, i, end
-        return logits, result
+                probs = softmax(logits)
+                indexes = torch.multinomial(probs, num_samples=1, replacement=True)
+                for k in range(batch_size):
+                    inputs[k] = int(indexes[k].item())
+            for k in range(batch_size):
+                seqs[k].append(inputs[k])
+
+        logits = torch.cat(logits_list, dim=1)
+        sampled = [torch.tensor(seq, dtype=torch.int, device=self.device) for seq in seqs]
+        return logits, sampled
 
     def read_node(self, node: BeamSearchNode) -> 'tuple[Any, int]':
         '''

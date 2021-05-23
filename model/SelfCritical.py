@@ -29,7 +29,7 @@ def calculate_reward(sample, predict, gt):
             predict_reward[i] = Levenshtein.distance(predict[i], gt[i])
         return {"sample": sample_reward, "predict": predict_reward}
 
-
+'''
 class SelfCritical(torch.autograd.Function):
     # TODO complete methods
     def __init__(self):
@@ -43,3 +43,4 @@ class SelfCritical(torch.autograd.Function):
     @staticmethod
     def backward(ctx, grad_output):
         return grad_output * ctx.constant, None
+'''

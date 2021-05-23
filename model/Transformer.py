@@ -325,7 +325,7 @@ class Img2SeqTransformer(nn.Module):
         '''
         decode for single step
         :param seq: the new input words. shape: (batch_size, 1)
-        :param decode_mem_list: the memory while decoding. It stores the [query, key, value] for previous words.
+        :param decode_mem_list: the memory while decoding. It stores the [key, value] for previous words.
         '''
         if seq.ndim == 1:
             seq = seq.unsqueeze(-1)

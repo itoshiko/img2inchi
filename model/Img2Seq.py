@@ -182,7 +182,7 @@ class DecoderWithAttention(nn.Module):
         preds = self.generator(self.dropout(hidden))  # (batch_size, vocab_size)
         return hidden, cell, preds
 
-    def forward(self, encodings, seqs):
+    def forward(self, encodings: Tensor, seqs: Tensor):
         """
         Forward propagation.
 
@@ -192,16 +192,12 @@ class DecoderWithAttention(nn.Module):
         :return: scores for vocabulary
         """
 
-        batch_size = encodings.size(0)
+        batch_size = encodings.shape[0]
         dim_encoder = self.dim_encoder
         vocab_size = self.vocab_size
 
         # Flatten image
         encodings = encodings.view(batch_size, -1, dim_encoder)  # (batch_size, num_pixels, dim_encoder)
-
-        # compute the batch size for each step
-        max_len = seqs.shape[1]
-        batch_step = torch.sum(seqs != PAD_ID, dim=0).long()
 
         # encode the sequences by one-hot
         seqs = self.embed(seqs)
@@ -217,18 +213,15 @@ class DecoderWithAttention(nn.Module):
         h, c = self.init_hidden_states(encodings)  # (batch_size, dim_decoder)
 
         # Create tensors to hold word predicion scores and alphas
-        predictions = torch.zeros(batch_size, max_len, vocab_size).to(device)
+        predictions = torch.zeros(batch_size, seqs.shape[1], vocab_size).to(device)
 
         # At each time-step, decode by
-        # attention-weighing the encoder's output based on the decoder's previous hidden state output
+        # attention-weighting the encoder's output based on the decoder's previous hidden state output
         # then generate a new word in the decoder with the previous word and the attention weighted encoding
-        for t in range(max_len):
-            print(t)
-            batch_size_t = batch_step[t]
-            h, c, preds = self.decode_step(encodings[:batch_size_t], h[:batch_size_t], c[:batch_size_t],
-                                           seqs[:batch_size_t, t, :])
-            predictions[:batch_size_t, t, :] = preds
-            del preds
+        for t in range(seqs.shape[1]):
+            h, c, preds = self.decode_step(encodings[:], h[:], c[:],
+                                           seqs[:, t, :])
+            predictions[:, t, :] = preds
 
         return predictions
   

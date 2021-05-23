@@ -1,11 +1,10 @@
 import click
 
 from data_gen import Img2SeqDataset
-from img2inchi import Img2InchiModel
+from img2inchi_lstm import Img2InchiLstmModel
 from img2inchi_transformer import Img2InchiTransformerModel
 from pkg.utils.general import Config
 from pkg.utils.vocab import vocab as vocabulary
-from pkg.utils.LRScheduler import LRSchedule
 
 
 @click.command()
@@ -31,7 +30,6 @@ def main(model_name, instance, data, vocab, model, output):
     config.vocab_size = my_vocab.size
     config.model_name = model_name
     config.instance = instance
-
     # Load datasets
     train_set = Img2SeqDataset(root=config.path_train_root,
                                data_dir=config.path_train_data_dir,
@@ -45,8 +43,8 @@ def main(model_name, instance, data, vocab, model, output):
                                vocab=my_vocab)
 
     # Build model and train
-    if model_name == "seq2seq":
-        model = Img2InchiModel(config, dir_output, my_vocab, need_output=True)
+    if model_name == "lstm":
+        model = Img2InchiLstmModel(config, dir_output, my_vocab, need_output=True)
         model.build_train(config)
         model.train(config, train_set, val_set)
     elif model_name == "transformer":
