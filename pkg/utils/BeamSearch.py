@@ -131,7 +131,7 @@ class BeamSearch(object):
         if encode_memory.ndim == 2:
             encode_memory = encode_memory.unsqueeze(0)
         batch_size = encode_memory.shape[0]
-        seqs: list[list[int]] = [[0] * batch_size]
+        seqs: list[list[int]] = [[] for _ in range(batch_size)]
         # Initialize decode_memory
         # Start with the start of the sentence token for each seq
         init_memory = self.init_decode_memory(encode_memory=encode_memory)
@@ -141,12 +141,12 @@ class BeamSearch(object):
         ]
         
         # decode
-        for t in range(self.max_len):
+        for _ in range(self.max_len):
             decode_memory_list, inputs = list(zip(*[self.read_node(node) for node in nodes]))
             decode_memory_list = list(decode_memory_list)
             inputs = list(inputs)
             logits = self.decode_step(decode_memory_list=decode_memory_list, inputs=inputs)
-            probs, indexes = choose_func(logits, nodes)
+            probs, indexes = choose_func(logits)
             del_ind = []
             for k, node in enumerate(nodes):
                 wordId = int(indexes[k].item())
