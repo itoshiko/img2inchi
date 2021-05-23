@@ -13,7 +13,6 @@ from pkg.utils.ProgBar import ProgressBar
 from pkg.utils.BeamSearchTransformer import BeamSearchTransformer
 from pkg.utils.utils import flatten_list, num_param
 
-
 PAD_ID = 0
 SOS_ID = 1
 EOS_ID = 2
@@ -28,12 +27,17 @@ class Img2InchiTransformerModel(BaseModel):
             self._device = 'cuda:0' if torch.cuda.is_available() else 'cpu'
         self.max_len = config.max_seq_len
 
-    def build_train(self, config):
+    def build_train(self, config=None):
         res = super().build_train(config=config)
         self.beam_search = BeamSearchTransformer(tf_model=self.model, device=self._device, beam_width=config.beam_width,
-                                                topk=1, max_len=self.max_len, max_batch=config.batch_size)
+                                                 topk=1, max_len=self.max_len, max_batch=config.batch_size)
         return res
 
+    def build_pred(self, model_path, config=None):
+        res = super().build_pred(model_path=model_path, config=config)
+        self.beam_search = BeamSearchTransformer(tf_model=self.model, device=self._device, beam_width=config.beam_width,
+                                                 topk=1, max_len=self.max_len, max_batch=config.batch_size)
+        return res
 
     def getModel(self):
         feature_size_1 = self._config.transformer["feature_size_1"]
@@ -130,7 +134,7 @@ class Img2InchiTransformerModel(BaseModel):
                 self.optimizer.zero_grad()
                 # update learning rate
                 lr_schedule.step()
-                progress_bar.update((i + 1) // accumulate_num, 
+                progress_bar.update((i + 1) // accumulate_num,
                                     [("loss", loss.item()), ("lr", self.optimizer.param_groups[0]['lr'])])
         self.logger.info("- Training loss: {}".format(losses / batch_num))
         self.logger.info("- Training: {}".format(progress_bar.info))
@@ -216,7 +220,7 @@ class Img2InchiTransformerModel(BaseModel):
 
         return score
 
-    def predict(self, img: Tensor, mode: str="beam") -> 'list[Tensor]':
+    def predict(self, img: Tensor, mode: str = "beam") -> 'list[Tensor]':
         img = img.to(self._device)
         model = self.model
         result = None
@@ -235,4 +239,3 @@ class Img2InchiTransformerModel(BaseModel):
         encodings = model.encode(img)
         result = self.beam_search.sample_decode(encode_memory=encodings)
         return result
-
