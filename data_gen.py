@@ -35,7 +35,7 @@ class Img2SeqDataset(Dataset):
         seq_batch = pad_sequence(seq_batch, padding_value=self.vocab.PAD_ID).transpose(0, 1).contiguous()
         return img_batch, seq_batch.long()
 
-    def generate_batch_Img2Seq(self, data_batch):
+    def generate_batch_lstm(self, data_batch):
         """
         generate the batch in decending order by sequence lenths.
         """
@@ -45,12 +45,12 @@ class Img2SeqDataset(Dataset):
         return torch.stack(img_batch), seq_batch.long()
 
 
-def get_dataLoader(dataset: Img2SeqDataset, batch_size: int = 4, mode='Img2Seq'):
-    if mode == 'Transformer':
+def get_dataLoader(dataset: Img2SeqDataset, batch_size: int = 4, model_name='transformer'):
+    if model_name == 'transformer':
         return DataLoader(dataset, batch_size=batch_size,
                           shuffle=True, collate_fn=dataset.generate_batch_transformer)
-    elif mode == 'Img2Seq':
+    elif model_name == 'lstm':
         return DataLoader(dataset, batch_size=batch_size,
-                          shuffle=True, collate_fn=dataset.generate_batch_Img2Seq)
+                          shuffle=True, collate_fn=dataset.generate_batch_lstm)
     else:
         raise Exception('Unknown mode')

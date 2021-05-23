@@ -1,105 +1,104 @@
-import torch
-
 from base import BaseModel
 from data_gen import get_dataLoader
-from model.Img2Seq import Img2Seq
-from pkg.utils.ProgBar import ProgressBar
 from pkg.utils.BeamSearchLSTM import BeamSearchLSTM
-from pkg.utils.utils import flatten_list, num_param
+from pkg.utils.BeamSearchTransformer import BeamSearchTransformer
+from model import SelfCritical
+from math import ceil
 
-PAD_ID = 0
-SOS_ID = 1
-EOS_ID = 2
+import torch
+from torch import Tensor
+
+from pkg.utils.ProgBar import ProgressBar
+from pkg.utils.utils import flatten_list
 
 
 class Img2InchiModel(BaseModel):
     def __init__(self, config, output_dir, vocab, need_output=True):
         super(Img2InchiModel, self).__init__(config, output_dir, need_output=need_output)
-        self._vocab = vocab
-        self._device = config.device
-        if self._device is None:
-            self._device = 'cuda:0' if torch.cuda.is_available() else 'cpu'
+        self.model_name = config.model_name
         self.max_len = config.max_seq_len
-        self.beam_search = BeamSearchLSTM(decoder=self.model.decoder, device=self._device, beam_width=config.beam_width,
-                                                topk=1, max_len=self.max_len, max_batch=config.batch_size)
+        self._vocab = vocab
 
-    def getModel(self):
-        img_w = self._config.img2seq['img_w']
-        img_h = self._config.img2seq['img_h']
-        vocab_size = self._config.vocab_size
-        dim_encoder = self._config.img2seq['dim_encoder']
-        dim_decoder = self._config.img2seq['dim_decoder']
-        dim_attention = self._config.img2seq['dim_attention']
-        dim_embed = self._config.img2seq['dim_embed']
-        if self._config.img2seq['dropout']:
-            dropout = self._config.img2seq['dropout']
+    def build_train(self, config=None):
+        self.logger.info("- Building model...")
+        self._init_model(config.model_name)
+        self._init_optimizer(config.lr_method, config.lr_init)
+        self._init_scheduler(config.lr_scheduler)
+        self._init_criterion(config.criterion_method)
+        self._init_beamSearch(config)
+
+        self.logger.info("- done.")
+
+    def build_pred(self, model_path, config=None):
+        self.logger.info("- Building model...")
+        self.logger.info("   - " + config.model_name)
+        self.logger.info("   - " + str(self.device))
+        self.model = self.getModel()
+        self.model = self.model.to(self.device)
+        model_from_disk = torch.load(model_path, map_location=self.device)
+        self.model.load_state_dict(model_from_disk["net"])
+        self._init_beamSearch(config)
+        self.logger.info("- done.")
+
+    def _init_beamSearch(self, config):
+        self.beam_search = self.getBeamSearch(model_name=config.model_name, device=self.device, 
+                                            beam_width=config.beam_width, max_len=self.max_len, max_batch=config.batch_size)
+
+    def getBeamSearch(self, model_name='transformer', device='cpu', beam_width=10, max_len=10, max_batch=100):
+        if model_name == 'transformer':
+            beam_search = BeamSearchTransformer(tf_model=self.model, device=device, beam_width=beam_width,
+                                                 topk=1, max_len=max_len, max_batch=max_batch)
+        elif model_name == 'lstm':
+            beam_search = BeamSearchLSTM(decoder=self.model.decoder, device=device, beam_width=beam_width,
+                                                 topk=1, max_len=max_len, max_batch=max_batch)
         else:
-            dropout = 0.5
-        model = Img2Seq(img_w, img_h, vocab_size, dim_encoder, dim_decoder, dim_attention, dim_embed, dropout=dropout)
-        self.model = model
-        print(f'The number of parameters: {num_param(model)}')
-        return model
+            raise NotImplementedError("Unknown model name")
+        return beam_search
 
-    def getOptimizer(self, lr_method="adam", lr=1e-3):
-        if lr_method == 'adam':
-            optimizer = torch.optim.Adam(params=self.model.parameters(), lr=lr)
-        elif lr_method == 'adamax':
-            optimizer = torch.optim.Adamax(params=self.model.parameters(), lr=lr)
-        elif lr_method == 'sgd':
-            optimizer = torch.optim.SGD(params=self.model.parameters(), lr=lr)
-        else:
-            raise NotImplementedError("Unknown Optimizer {}".format(lr_method))
-        return optimizer
-
-    def getLearningRateScheduler(self, lr_scheduler="CosineAnnealingLR"):
-        return super().getLearningRateScheduler(lr_scheduler)
-
-    def _run_train_epoch(self, config, train_set, val_set, epoch, lr_schedule):
+    def prepare_data(self, batch_size, data_set):
+        train_loader = get_dataLoader(data_set, batch_size=batch_size, model_name=self.model_name)
+        return train_loader
+        
+    def _run_train_epoch(self, train_set, val_set, lr_schedule):
         """Performs an epoch of training
                 Args:
-                    config: Config instance
                     train_set: Dataset instance
                     val_set: Dataset instance
-                    epoch: (int) id of the epoch, starting at 0
                     lr_schedule: LRSchedule instance that takes care of learning proc
                 Returns:
                     score: (float) model will select weights that achieve the highest score
                 """
         # logging
-        batch_size = config.batch_size
-        loss_mode = config.loss_mode
-        nbatches = (len(train_set) + batch_size - 1) // batch_size
-        progress_bar = ProgressBar(nbatches)
         self.model.train()
+        batch_size = self._config.batch_size
+        device = self.device
+        accumulate_num = self._config.gradient_accumulate_num
+        train_loader = self.prepare_data(batch_size, train_set)
+        batch_num = len(train_loader)
+        nbatches = ceil(batch_num / accumulate_num)
+        progress_bar = ProgressBar(nbatches)
         losses = 0
-        train_loader = get_dataLoader(train_set, batch_size=batch_size, mode='Img2Seq')
-
+        self.optimizer.zero_grad()
         for i, (img, seq) in enumerate(train_loader):
-            # img = torch.FloatTensor(img)
-            # seq = torch.LongTensor(seq)  # (N,)
-            img = img.to(self._device)
-            seq = seq.to(self._device)
+            img = img.to(device)
+            seq = seq.to(device)
             seq_input = seq[:, :-1]
-            logits = self.model(img, seq_input)
-            self.optimizer.zero_grad()
+            logits = self.model(img, seq_input)  # (batch_size, lenth, vocab_size)
             seq_out = seq[:, 1:]
-            if loss_mode == "SCST":
-                # TODO implement SCST algorithm
-                pass
-            else:
-                loss = self.criterion(logits.reshape(-1, logits.shape[-1]), seq_out.reshape(-1))
-            loss.backward()
-            self.optimizer.step()
-            # TODO record steps
+            loss = self.criterion(logits.reshape(-1, logits.shape[-1]), seq_out.reshape(-1))
             losses += loss.item()
-            progress_bar.update(i + 1, [("loss", loss), ("lr", self.optimizer.param_groups[0]['lr'])])
-
-            # update learning rate
-            lr_schedule.step()
-
+            loss.backward()
+            if ((i + 1) % accumulate_num == 0) or (i + 1 == batch_num):
+                self.optimizer.step()
+                self.optimizer.zero_grad()
+                # update learning rate
+                lr_schedule.step()
+                progress_bar.update((i + 1) // accumulate_num,
+                                    [("loss", loss.item()), ("lr", self.optimizer.param_groups[0]['lr'])])
+        self.logger.info("- Training loss: {}".format(losses / batch_num))
         self.logger.info("- Training: {}".format(progress_bar.info))
         self.logger.info("- Config: (before evaluate, we need to see config)")
-        config.show(fun=self.logger.info)
+        self._config.show(fun=self.logger.info)
 
         # evaluation
         scores = self.evaluate(val_set)
@@ -110,27 +109,78 @@ class Img2InchiModel(BaseModel):
     def _run_evaluate_epoch(self, test_set):
         self.model.eval()
         losses = 0
+        batch_size = self._config.batch_size
+        device = self.device
+        test_loader = self.prepare_data(batch_size, test_set)
+        nbatches = len(test_loader)
+        progress_bar = ProgressBar(nbatches)
         with torch.no_grad():
-            nbatches = len(test_set)
-            batch_size = self._config.batch_size
-            prog = ProgressBar(nbatches)
-            test_loader = get_dataLoader(test_set, batch_size=batch_size, mode='Img2Seq')
-
             for i, (img, seq) in enumerate(test_loader):
-                img = img.to(self._device)
-                seq = seq.to(self._device)
+                img = img.to(device)
+                seq = seq.to(device)
                 seq_input = seq[:, :-1]
                 logits = self.model(img, seq_input)
                 seq_out = seq[:, 1:]
                 loss = self.criterion(logits.reshape(-1, logits.shape[-1]), seq_out.reshape(-1))
                 losses += loss.item()
-                prog.update(i + 1, [("loss", losses / len(test_loader))])
+                progress_bar.update(i + 1, [("loss", losses / (i + 1))])
 
-        self.logger.info("- Evaluating: {}".format(prog.info))
+        self.logger.info("- Evaluating: {}".format(progress_bar.info))
 
         return {"Evaluate Loss": losses / len(test_loader)}
 
-    def predict(self, img, max_len=200, mode="beam"):
+    def _run_scst(self, train_set, val_set):
+        """Performs an epoch of Self-Critical Sequence Training
+                Args:
+                    config: Config instance
+                    train_set: Dataset instance
+                    val_set: Dataset instanc
+                    lr_schedule: LRSchedule instance that takes care of learning proc
+                Returns:
+                    score: (float) model will select weights that achieve the highest score
+                """
+        # logging
+        self.model.train()
+        batch_size = self._config.batch_size
+        device = self.device
+        SCST_predict_mode = self._config.SCST_predict_mode
+        scst_lr = self._config.SCST_lr
+        train_loader = self.prepare_data(batch_size, train_set)
+        nbatches = len(train_loader)
+        progress_bar = ProgressBar(nbatches)
+        losses = 0
+        optimizer = self.getOptimizer(lr_method="adam", lr=scst_lr)
+        for t in range(self.max_len, 0, -5):
+            for i, (img, seq) in enumerate(train_loader):
+                img = img.to(device)
+                seq = seq.to(device)
+                seq_input = seq[:, :-1]
+                optimizer.zero_grad()
+                seq_out = seq[:, 1:]
+                gts = []
+                for i in range(batch_size):
+                    gts.append(self._vocab.decode(seq[i, :]))
+                logits, sampled_seq = self.sample(img=img, gts=seq_out, forcing_num=t)
+
+                loss = self.criterion(logits.reshape(-1, logits.shape[-1]), seq_out.reshape(-1))
+                predict_seq = self.predict(img, mode=SCST_predict_mode)
+                reward = SelfCritical.calculate_reward(sampled_seq, predict_seq, gts)
+                loss *= reward["sample"] - reward["predict"]
+                loss.backward()
+                optimizer.step()
+                losses += loss.item()
+                progress_bar.update(i + 1, [("loss", loss), ("lr", scst_lr)])
+            self.logger.info("- Training: {}".format(progress_bar.info))
+            self.logger.info("- Config: (before evaluate, we need to see config)")
+            self._config.show(fun=self.logger.info)
+
+            # evaluation
+            scores = self.evaluate(val_set)
+            score = scores["Evaluate Loss"]
+
+        return score
+
+    def predict(self, img: Tensor, mode: str = "beam") -> 'list[Tensor]':
         img = img.to(self._device)
         model = self.model
         result = None
@@ -143,6 +193,9 @@ class Img2InchiModel(BaseModel):
                 result = self.beam_search.greedy_decode(encode_memory=encodings)
         return result
 
-    def sample(self, encodings):
-        # TODO implement sampling method
-        pass
+    def sample(self, img: Tensor, gts: Tensor, forcing_num: int):
+        img = img.to(self._device)
+        model = self.model
+        encodings = model.encode(img)
+        result = self.beam_search.sample(encode_memory=encodings, gts=gts, forcing_num=forcing_num)
+        return result
