@@ -191,7 +191,7 @@ class BeamSearch(object):
                 for k in range(batch_size):
                     inputs[k] = int(indexes[k].item())
             for k in range(batch_size):
-                seqs[k].append(inputs[k])
+                seqs[k].append(int(indexes[k].item()))
 
         sampled = [torch.tensor(seq, dtype=torch.int, device=self.device) for seq in seqs]
         return logits, sampled
@@ -227,8 +227,8 @@ class BeamSearch(object):
             probs, indexes = torch.topk(probs, self.beam_width, dim=-1)
             for k, decode_memory in enumerate(decode_memory_list):
                 next_nodes[batch_nodes[k].batch_id] += [
-                    BeamSearchNode(decode_memory=decode_memory, wordId=int(indexes[k, 0, j].item()), 
-                                    prob=float(probs[k, 0, j].item()), parent=batch_nodes[k])
+                    BeamSearchNode(decode_memory=decode_memory, wordId=int(indexes[k, j].item()), 
+                                    prob=float(probs[k, j].item()), parent=batch_nodes[k])
                     for j in range(self.beam_width)
                 ]
 
