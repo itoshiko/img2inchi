@@ -202,7 +202,7 @@ class Img2InchiTransformerModel(BaseModel):
                 gts.append(self._vocab.decode(seq[i, :]))
             logits, sampled_seq = self.sample(img)
 
-            loss = self.criterion(logits.reshape(-1, logits.shape[-1]), seq_out.reshape(-1))
+            loss = self.criterion(logits.reshape(-1, logits.shape[-1]), seq_out[seq_out != PAD_ID])
             predict_seq = self.predict(img, mode=SCST_predict_mode)
             reward = SelfCritical.calculate_reward(sampled_seq, predict_seq, gts)
             loss *= reward["sample"] - reward["predict"]

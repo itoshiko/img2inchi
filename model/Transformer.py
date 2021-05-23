@@ -231,9 +231,10 @@ class TransformerDecoder(nn.Module):
         return output
     
     def init_decode_memory(self, memory: Tensor, device) -> 'list[list[Tensor]]':
-        decode_mem_list = []
-        for i in range(self.num_layers):
-            decode_mem_list.append(self.layers[i].init_decode_memory(memory=memory, device=device))
+        decode_mem_list = [
+            self.layers[i].init_decode_memory(memory=memory, device=device)
+            for i in range(self.num_layers)
+        ]
         return decode_mem_list
 
     def clear_cache(self):
@@ -329,7 +330,7 @@ class Img2SeqTransformer(nn.Module):
         if seq.ndim == 1:
             seq = seq.unsqueeze(-1)
         if pos is None:
-            pos = decode_memory[0, 0].shape[1]
+            pos = decode_memory[0][0].shape[1]
         if tgt_padding_mask is not None:
             assert tgt_padding_mask.shape[1] == pos + 1
         batch_size = seq.shape[0]

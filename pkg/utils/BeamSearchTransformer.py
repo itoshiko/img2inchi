@@ -23,7 +23,7 @@ class BeamSearchTransformer(BeamSearch):
         decode_memory_list = flatten_list(decode_memory)
         decode_memory_list = [[memory[k] for k in range(batch_size)] for memory in decode_memory_list]
         decode_memory_list = list(zip(*decode_memory_list))
-        decode_memory_list = [split_list(l=x, d=4) for x in decode_memory_list]
+        decode_memory_list = [split_list(l=list(x), d=4) for x in decode_memory_list]
         return decode_memory_list
 
     def merge_decode_memory(self, decode_memory_list: 'list[list[list[Tensor]]]'):
@@ -64,7 +64,7 @@ class BeamSearchTransformer(BeamSearch):
         inputs = torch.tensor(inputs, dtype=torch.int, device=self.device)
         # decode for one step using decode_step
         outputs = self.model.decode_step(seq=inputs, decode_memory=decode_memory, pos=None, tgt_padding_mask=None)
-        memory_list = self.split_decode_memory(decode_memory)
+        memory_list = self.split_decode_memory(decode_memory, batch_size)
         for k in range(batch_size):
             decode_memory_list[k] = memory_list[k]
         return outputs
