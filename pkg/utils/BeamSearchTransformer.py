@@ -79,5 +79,5 @@ class BeamSearchTransformer(BeamSearch):
         self.model.clear_cache()
         return ans
 
-    def sample_decode(self, encode_memory: Tensor) -> 'tuple[Tensor, list[Tensor]]':
-        return super().sample_decode(encode_memory)
+    def sample(self, encode_memory: Tensor, gts: Tensor, forcing_num: int) -> 'tuple[Tensor, list[Tensor]]':
+        return super().sample(encode_memory=encode_memory, gts=gts, forcing_num=forcing_num)

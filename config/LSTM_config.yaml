@@ -6,17 +6,16 @@ img2seq:
   dim_attention: 512
   dim_embed:
   dropout: 0.1
+max_seq_len: 300
 lr_init: 0.001
-start_decay: 0
-end_decay: 10000
-end_warm: 100
-lr_warm: 0.0001
 lr_min: 0.0001
 batch_size: 1
 lr_method: 'adam'
 lr_scheduler: 'CosineAnnealingLR'
-device: 'cuda:1'
+device: 'cuda:0'
 criterion_method: 'CrossEntropyLoss'
 n_epochs: 10
-loss_mode: 'SCST'
 SCST_predict_mode: 'greedy'
+SCST_lr: 0.00001
+gradient_accumulate_num: 8
+beam_width: 5
