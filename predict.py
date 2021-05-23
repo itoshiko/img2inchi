@@ -27,10 +27,10 @@ def pre_process(image):
     return image
 
 
-def interactive_shell(model):
+def interactive_shell(model, vocab):
     """Creates interactive shell to play with model
     """
-    model.logger.info("This is an interactive mode.To exit, enter 'exit'."
+    print("This is an interactive mode.To exit, enter 'exit'."
                       "Enter a path to a fileinput> data/images_test/0.png")
 
     while True:
@@ -46,7 +46,8 @@ def interactive_shell(model):
             img = torch.from_numpy(img).float()
             img = img.repeat(1, 3, 1, 1)
             result = model.predict(img, mode="beam")
-            print(result[0])
+            seq = vocab.decode(result[0])
+            print(seq)
         if os.path.isdir(img_path):
             img_list = []
             for root, dirs, files in os.walk(img_path):
@@ -54,12 +55,12 @@ def interactive_shell(model):
                     _img_path = os.path.join(img_path, file)
                     img = cv2.imread(_img_path, cv2.IMREAD_GRAYSCALE)
                     _, img = pre_process(img)
-                    img = img.repeat(3, 1, 1)
+                    img = np.tile(img, (3, 1, 1))
                     img_list.append(img)
-            img_list = torch.from_numpy(img_list).float()
-            result = model.predict(img_list, max_len=300, mode="greedy")
+            img_list = torch.Tensor(img_list).float()
+            result = model.predict(img_list, mode="greedy")
             for i in range(model.shape[0]):
-                model.logger.info(result[i])
+                print(vocab.decode(result[i]))
 
 
 @click.command()
@@ -78,11 +79,11 @@ def main(model_path, instance):
     if model_type == "transformer":
         model = Img2InchiTransformerModel(config, output_dir='', vocab=my_vocab, need_output=False)
         model.build_pred(model_file_name, config=config)
-        interactive_shell(model)
+        interactive_shell(model, my_vocab)
     elif model_type == "seq2seq":
         model = Img2InchiModel(config, output_dir='', vocab=my_vocab, need_output=False)
         model.build_pred(model_file_name, config=config)
-        interactive_shell(model)
+        interactive_shell(model, my_vocab)
 
 
 if __name__ == '__main__':
