@@ -62,6 +62,7 @@ def write_csv(seq_list, name_list, file_path):
         with open(file_path, mode='a', newline='', encoding='utf8') as cfa:
             wf = csv.writer(cfa)
             wf.writerows(list(map(list, zip(*[name_list, seq_list]))))
+    print("CSV written!")
 
 
 @click.command()
@@ -91,7 +92,6 @@ def main(model_path, data_path, batch_size, csv_filename):
     else:
         raise NotImplementedError("Unknown type of model!")
 
-    progress_bar = ProgressBar(len(dir_list))
     i = 0
 
     for directory in dir_list:
@@ -102,7 +102,7 @@ def main(model_path, data_path, batch_size, csv_filename):
             seq_list.clear()
             name_list.clear()
         i += 1
-        progress_bar.update(i + 1, values=None)
+        print('Processed {} folders'.format(i))
 
 
 if __name__ == '__main__':
