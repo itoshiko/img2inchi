@@ -2,12 +2,12 @@ import heapq
 
 from torch.nn.functional import softmax
 from pkg.utils.vocab import SOS
-from typing import Any, Callable, Optional, TypeVar
+from typing import Any, Callable, Optional, TypeVar, Union
 
 import torch
 import numpy as np
 from torch import Tensor, LongTensor
-from pkg.utils.utils import flatten_list
+from pkg.utils.utils import flatten_list, split_list
 
 PAD_ID: int = 0
 SOS_ID: int = 1
@@ -81,7 +81,7 @@ class BeamSearch(object):
         
 
         nodes: list[list[BeamSearchNode]] = []  # store all the active nodes for each seq in batch. 2d list
-        end_nodes: list[list[BeamSearchNode]] = [[] * batch_size]   # store all the ended nodes for each seq. 2d list
+        end_nodes: list[list[BeamSearchNode]] = [[] for _ in range(batch_size)]   # store all the ended nodes for each seq. 2d list
 
         # Initialize decode_memory
         # Start with the start of the sentence token for each seq
@@ -166,8 +166,7 @@ class BeamSearch(object):
             return torch.max(probs, dim=-1)
         return self.decode_with_width_one(encode_memory=encode_memory, choose_func=greedy_func)
 
-    def sample(self, encode_memory: Tensor, gts: Tensor, forcing_num: int) -> 'tuple[Tensor, list[Tensor]]':
-        logits_list = []
+    def sample(self, encode_memory: Tensor, gts: Tensor, forcing_num: int, vocab_size: int) -> 'tuple[Tensor, list[Tensor]]':
         if encode_memory.ndim == 2:
             encode_memory = encode_memory.unsqueeze(0)
         batch_size = encode_memory.shape[0]
@@ -177,12 +176,12 @@ class BeamSearch(object):
 
         # Initialize decode_memory
         # Start with the start of the sentence token for each seq
-        decode_memory_list = self.init_decode_memory(encode_memory=encode_memory)
+        decode_memory = self.init_decode_memory(encode_memory=encode_memory, split=False)
+        logits = torch.zeros((batch_size, N, vocab_size), device=self.device)
 
         # decode
         for t in range(N):
-            logits = self.decode_step(decode_memory_list=decode_memory_list, inputs=inputs)
-            logits_list.append(logits)
+            logits[:, t, :] = self.decode_step(decode_memory_list=decode_memory, inputs=inputs, split=False)
             if t < forcing_num:
                 for k in range(batch_size):
                     inputs[k] = int(gts[k, t].item())
@@ -194,7 +193,6 @@ class BeamSearch(object):
             for k in range(batch_size):
                 seqs[k].append(inputs[k])
 
-        logits = torch.cat(logits_list, dim=1)
         sampled = [torch.tensor(seq, dtype=torch.int, device=self.device) for seq in seqs]
         return logits, sampled
 
@@ -215,7 +213,7 @@ class BeamSearch(object):
         """
         max_batch = self.max_batch
         batch_size = len(nodes)
-        next_nodes: list[list[BeamSearchNode]] = [[] * max_batch]
+        next_nodes: list[list[BeamSearchNode]] = [[] for _ in range(batch_size)]
 
         nodes = flatten_list(nodes)   # flatten
         
@@ -239,7 +237,7 @@ class BeamSearch(object):
 
         return next_nodes
 
-    def init_decode_memory(self, encode_memory: Tensor) -> list:
+    def init_decode_memory(self, encode_memory: Tensor, split: bool=True) -> list:
         '''
         Initialize the decode_memory by encode_memory. This method should implemented by subclass.
 
@@ -248,7 +246,7 @@ class BeamSearch(object):
         '''
         raise NotImplementedError("Method 'init_decode_memory' isn't implemented.")
 
-    def decode_step(self, decode_memory_list: list, inputs: 'list[int]') -> Tensor:
+    def decode_step(self, decode_memory_list: list, inputs: 'list[int]', split: bool=True) -> Tensor:
         '''
         Decode for single step. This method should implemented by subclass.
 

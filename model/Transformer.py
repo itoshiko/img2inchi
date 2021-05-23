@@ -339,7 +339,7 @@ class Img2SeqTransformer(nn.Module):
         outs = self.transformer_decoder(tgt=seq_emb, memory=memory, tgt_mask=None, memory_mask=None,
                                         tgt_key_padding_mask=tgt_padding_mask, memory_key_padding_mask=None, 
                                         decode_mem_list=decode_memory)
-        return self.generator(outs)
+        return self.generator(outs).squeeze(1)
 
     def clear_cache(self):
         self.transformer_decoder.clear_cache()

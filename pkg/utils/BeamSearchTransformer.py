@@ -1,4 +1,5 @@
 
+from typing import Any, Union
 import torch
 from torch.nn.functional import softmax
 from torch.tensor import Tensor
@@ -33,7 +34,7 @@ class BeamSearchTransformer(BeamSearch):
         decode_memory = split_list(l=decode_memory, d=4)
         return decode_memory
 
-    def init_decode_memory(self, encode_memory: Tensor):
+    def init_decode_memory(self, encode_memory: Tensor, split: bool=True):
         '''
         Initialize the decode_memory by encode_memory using decoder.init_hidden_states.
         The decode memory is a tuple: (encode_memory/encoding, hidden state, memory cell)
@@ -43,10 +44,10 @@ class BeamSearchTransformer(BeamSearch):
         '''
         batch_size = encode_memory.shape[0]
         decode_memory = self.model.init_decode_memory(encode_memory)
-        return self.split_decode_memory(decode_memory, batch_size)
+        return self.split_decode_memory(decode_memory, batch_size) if split else [decode_memory]
         
 
-    def decode_step(self, decode_memory_list: 'list[list[list[Tensor]]]', inputs: 'list[int]') -> Tensor:
+    def decode_step(self, decode_memory_list: 'list[list[list[Tensor]]]', inputs: 'list[int]', split: bool=True) -> Tensor:
         '''
         Decode for single step using Img2SeqTransformer.decode_step.
 
@@ -60,13 +61,19 @@ class BeamSearchTransformer(BeamSearch):
         :return: the logits after decoding.
         '''
         batch_size = len(decode_memory_list)
-        decode_memory = self.merge_decode_memory(decode_memory_list)
+        if split:
+            decode_memory = self.merge_decode_memory(decode_memory_list)
+        else:
+            decode_memory = decode_memory_list[0]
         inputs = torch.tensor(inputs, dtype=torch.int, device=self.device)
         # decode for one step using decode_step
         outputs = self.model.decode_step(seq=inputs, decode_memory=decode_memory, pos=None, tgt_padding_mask=None)
-        memory_list = self.split_decode_memory(decode_memory, batch_size)
-        for k in range(batch_size):
-            decode_memory_list[k] = memory_list[k]
+        if split:
+            memory_list = self.split_decode_memory(decode_memory, batch_size)
+            for k in range(batch_size):
+                decode_memory_list[k] = memory_list[k]
+        else:
+            decode_memory_list[0] = decode_memory
         return outputs
 
     def beam_decode(self, encode_memory: Tensor) -> 'list[list[Tensor]]':
@@ -79,5 +86,5 @@ class BeamSearchTransformer(BeamSearch):
         self.model.clear_cache()
         return ans
 
-    def sample(self, encode_memory: Tensor, gts: Tensor, forcing_num: int) -> 'tuple[Tensor, list[Tensor]]':
-        return super().sample(encode_memory=encode_memory, gts=gts, forcing_num=forcing_num)
+    def sample(self, encode_memory: Tensor, gts: Tensor, forcing_num: int, vocab_size: int) -> 'tuple[Tensor, list[Tensor]]':
+        return super().sample(encode_memory=encode_memory, gts=gts, forcing_num=forcing_num, vocab_size=vocab_size)
