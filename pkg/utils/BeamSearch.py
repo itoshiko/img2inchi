@@ -2,7 +2,7 @@ import heapq
 
 from torch.nn.functional import softmax
 from pkg.utils.vocab import SOS
-from typing import Callable, Optional, TypeVar
+from typing import Any, Callable, Optional, TypeVar
 
 import torch
 import numpy as np
@@ -36,8 +36,8 @@ class BeamSearchNode(object):
         else:
             pre_seq = []
             pre_prob = 1
-        self.seq = pre_seq + [wordId]
-        self.prob = pre_prob * prob
+        self.seq: list[int] = pre_seq + [wordId]
+        self.prob: float = pre_prob * prob
         if not batch_id: raise Exception('Cannot get the batch_id')
 
     def __lt__(self, other):
@@ -86,8 +86,10 @@ class BeamSearch(object):
         # Initialize decode_memory
         # Start with the start of the sentence token for each seq
         init_memory = self.init_decode_memory(encode_memory=encode_memory)
-        for k, decode_memory in enumerate(init_memory):
-            nodes.append([BeamSearchNode(decode_memory=decode_memory, wordId=SOS_ID, prob=1, parent=None, batch_id=k)])
+        nodes = [
+            [BeamSearchNode(decode_memory=decode_memory, wordId=SOS_ID, prob=1, parent=None, batch_id=k)]
+            for k, decode_memory in enumerate(init_memory)
+        ]
 
         # decode
         for _ in range(self.max_len):
@@ -123,39 +125,45 @@ class BeamSearch(object):
     
         return decoded_batch
 
-    def decode_with_width_one(self, encode_memory: Tensor, choose_func: Callable[[Tensor], LongTensor]) -> 'list[Tensor]':
+    def decode_with_width_one(
+            self, encode_memory: Tensor, choose_func: Callable[[Tensor, 'list[BeamSearchNode]'], 'tuple[Tensor, LongTensor]']
+        ) -> 'list[Tensor]':
         batch_size = encode_memory.shape[0]
-        seqs = [[SOS_ID] for _ in range(batch_size)]
-        inputs = [SOS_ID for _ in range(batch_size)]
-        batch_id = list(range(batch_size))
+        seqs: list[list[int]] = [None * batch_size]
+        # Initialize decode_memory
+        # Start with the start of the sentence token for each seq
+        init_memory = self.init_decode_memory(encode_memory=encode_memory)
+        nodes = [
+            BeamSearchNode(decode_memory=decode_memory, wordId=SOS_ID, prob=1, parent=None, batch_id=k)
+            for k, decode_memory in enumerate(init_memory)
+        ]
         
-        decode_memory_list = self.init_decode_memory(encode_memory=encode_memory)
         # decode
-        for _ in range(self.max_len):
-            probs = self.decode_step(decode_memory_list=decode_memory_list, inputs=inputs)
-            indexes = choose_func(probs)
+        for t in range(self.max_len):
+            decode_memory_list, inputs = list(zip(*[self.read_node(node) for node in nodes]))
+            logits = self.decode_step(decode_memory_list=decode_memory_list, inputs=inputs)
+            probs, indexes = choose_func(logits, nodes)
             del_ind = []
-            for k in range(len(inputs)):
-                inputs[k] = int(indexes[k].item())
-                seqs[batch_id[k]].append(inputs[k])
-                if inputs[k] == EOS_ID:
+            for k, node in enumerate(nodes):
+                wordId = int(indexes[k].item())
+                nodes[k] = BeamSearchNode(decode_memory=decode_memory_list[k], wordId=wordId, prob=probs[wordId], parent=node)
+                if wordId == EOS_ID:
                     del_ind.append(k)
-            decode_memory_list = _delete_by_index(decode_memory_list, del_ind)
-            inputs = _delete_by_index(inputs, del_ind)
-            batch_id = _delete_by_index(batch_id, del_ind)
-            if len(inputs) == 0:
+                    seqs[node.batch_id] = node.seq
+            nodes = _delete_by_index(nodes, del_ind)
+            if len(nodes) == 0:
                 break
         return [torch.tensor(seq, dtype=torch.int, device=self.device) for seq in seqs]
 
     def greedy_decode(self, encode_memory: Tensor) -> 'list[Tensor]':
-        greedy_func = lambda logits: torch.max(logits, dim=1)[1]
+        greedy_func = lambda logits, nodes: torch.max(logits, dim=1)[1]
         return self.decode_with_width_one(encode_memory=encode_memory, choose_func=greedy_func)
 
     def sample_decode(self, encode_memory: Tensor, gts: Tensor, forcing_num: int) -> 'tuple[Tensor, list[Tensor]]':
         global logits_list, i, end
         logits_list = []
         i = 0
-        def _sample_func(logits):
+        def _sample_func(logits, nodes):
             global logits_list, i, end
             logits_list.append(logits)
             if i < forcing_num:
@@ -167,9 +175,15 @@ class BeamSearch(object):
             i += 1
             return res
         result = self.decode_with_width_one(encode_memory=encode_memory, choose_func=_sample_func)
-        logits = torch.cat(logits_list, dim=1)
+        logits = torch.cat(logits_list, dim=0)
         del logits_list, i, end
         return logits, result
+
+    def read_node(node: BeamSearchNode) -> 'tuple[Any, int]':
+        '''
+        return the tuple: (decode_memory, wordId)
+        '''
+        return node.decode_memory, node.seq[-1]
 
     def expand_nodes(self, nodes: 'list[list[BeamSearchNode]]') -> 'list[list[BeamSearchNode]]':
         """
@@ -180,8 +194,6 @@ class BeamSearch(object):
         :param encodings: encoder output
         :return: the successor
         """
-        # return the tuple: (decode_memory, wordId)
-        read_node = lambda node: (node.decode_memory, node.seq[-1])
         max_batch = self.max_batch
         batch_size = len(nodes)
         next_nodes: list[list[BeamSearchNode]] = [[] * max_batch]
@@ -190,7 +202,7 @@ class BeamSearch(object):
         
         for i in range(0, len(nodes), max_batch):
             batch_nodes = nodes[i:i + max_batch]
-            decode_memory_list, inputs = list(zip(*[read_node(node) for node in batch_nodes]))
+            decode_memory_list, inputs = list(zip(*[self.read_node(node) for node in batch_nodes]))
             logits = self.decode_step(decode_memory_list=decode_memory_list, inputs=inputs)
             probs = softmax(logits, dim=1)
             probs, indexes = torch.topk(probs, self.beam_width, dim=1)
