@@ -181,7 +181,7 @@ class Img2InchiModel(BaseModel):
         return score
 
     def predict(self, img: Tensor, mode: str = "beam") -> 'list[Tensor]':
-        img = img.to(self._device)
+        img = img.to(self.device)
         model = self.model
         result = None
         with torch.no_grad():
@@ -194,7 +194,7 @@ class Img2InchiModel(BaseModel):
         return result
 
     def sample(self, img: Tensor, gts: Tensor, forcing_num: int):
-        img = img.to(self._device)
+        img = img.to(self.device)
         model = self.model
         encodings = model.encode(img)
         result = self.beam_search.sample(encode_memory=encodings, gts=gts, forcing_num=forcing_num)

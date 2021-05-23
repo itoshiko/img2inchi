@@ -31,7 +31,7 @@ def predict_all(model, vocab, path, batch_size):
     for arr in split_array:
         img_list = torch.from_numpy(arr).float()
         result = model.predict(img_list, mode="greedy")
-        for j in range(result.shape[0]):
+        for j in range(len(result)):
             print(vocab.decode(result[j]))
 
 
