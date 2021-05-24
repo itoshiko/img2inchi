@@ -1,3 +1,4 @@
+from logging import config
 import os
 import time
 import logging
@@ -145,7 +146,7 @@ class BaseModel(object):
         self.logger.info("- Saved model in {}".format(self._model_dir))
 
     # 4. train and evaluate
-    def train(self, config, train_set, val_set):
+    def train(self, train_set, val_set):
         """Global training procedure
         Calls method self.run_epoch and saves weights if score improves.
         All the epoch-logic including the lr_schedule update must be done in
@@ -157,6 +158,7 @@ class BaseModel(object):
         Returns:
             best_score: (float)
         """
+        config = self._config
         best_score = None
         if self.is_resume:
             self.now_epoch = self.old_model["epoch"]

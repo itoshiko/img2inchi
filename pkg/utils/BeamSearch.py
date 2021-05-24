@@ -1,7 +1,7 @@
 import heapq
 
 from torch.nn.functional import softmax
-from pkg.utils.vocab import SOS
+from pkg.utils.vocab import EOS, SOS
 from typing import Any, Callable, Optional, TypeVar, Union
 
 import torch
@@ -126,45 +126,44 @@ class BeamSearch(object):
         return decoded_batch
 
     def decode_with_width_one(
-            self, encode_memory: Tensor, choose_func: Callable[[Tensor], 'tuple[Tensor, LongTensor]']
+            self, encode_memory: Tensor, choose_func: Callable[[Tensor], 'LongTensor']
         ) -> 'list[Tensor]':
         if encode_memory.ndim == 2:
             encode_memory = encode_memory.unsqueeze(0)
         batch_size = encode_memory.shape[0]
+        inputs: list[int] = [SOS_ID for _ in range(batch_size)]
         seqs: list[list[int]] = [[] for _ in range(batch_size)]
+        finished = [False for _ in range(batch_size)]
+
         # Initialize decode_memory
         # Start with the start of the sentence token for each seq
-        init_memory = self.init_decode_memory(encode_memory=encode_memory)
-        nodes = [
-            BeamSearchNode(decode_memory=decode_memory, wordId=SOS_ID, prob=1, parent=None, batch_id=k)
-            for k, decode_memory in enumerate(init_memory)
-        ]
-        
+        decode_memory = self.init_decode_memory(encode_memory=encode_memory, split=False)
+
         # decode
         for _ in range(self.max_len):
-            decode_memory_list, inputs = list(zip(*[self.read_node(node) for node in nodes]))
-            decode_memory_list = list(decode_memory_list)
-            inputs = list(inputs)
-            logits = self.decode_step(decode_memory_list=decode_memory_list, inputs=inputs)
-            probs, indexes = choose_func(logits)
-            del_ind = []
-            for k, node in enumerate(nodes):
-                wordId = int(indexes[k].item())
-                prob = float(probs[k].item())
-                nodes[k] = BeamSearchNode(decode_memory=decode_memory_list[k], wordId=wordId, prob=prob, parent=node)
-                if wordId == EOS_ID:
-                    del_ind.append(k)
-                    seqs[node.batch_id] = node.seq
-            nodes = _delete_by_index(nodes, del_ind)
-            if len(nodes) == 0:
+            logits = self.decode_step(decode_memory_list=decode_memory, inputs=inputs, split=False)
+            indexes = choose_func(logits)
+            for k in range(batch_size):
+                inputs[k] = int(indexes[k].item())
+                if not finished[k]:
+                    seqs[k].append(inputs[k])
+                if inputs[k] == EOS_ID:
+                    finished[k] = True
+            if all(finished):
                 break
+        
         return [torch.tensor(seq, dtype=torch.int, device=self.device) for seq in seqs]
 
     def greedy_decode(self, encode_memory: Tensor) -> 'list[Tensor]':
         def greedy_func(logits):
-            probs = softmax(logits, dim=-1)
-            return torch.max(probs, dim=-1)
+            return torch.max(softmax(logits, dim=-1), dim=-1)[-1]
         return self.decode_with_width_one(encode_memory=encode_memory, choose_func=greedy_func)
+
+    def sample_decode(self, encode_memory: Tensor) -> 'list[Tensor]':
+        def sample_func(logits):
+            indexes = torch.multinomial(softmax(logits, dim=-1), num_samples=1, replacement=True).squeeze(-1)
+            return indexes
+        return self.decode_with_width_one(encode_memory=encode_memory, choose_func=sample_func)
 
     def sample(self, encode_memory: Tensor, gts: Tensor, forcing_num: int, vocab_size: int) -> 'tuple[Tensor, list[Tensor]]':
         if encode_memory.ndim == 2:
@@ -186,12 +185,12 @@ class BeamSearch(object):
                 for k in range(batch_size):
                     inputs[k] = int(gts[k, t].item())
             else:
-                probs = softmax(logits)
+                probs = softmax(logits[:, t, :], dim=-1)
                 indexes = torch.multinomial(probs, num_samples=1, replacement=True)
                 for k in range(batch_size):
                     inputs[k] = int(indexes[k].item())
             for k in range(batch_size):
-                seqs[k].append(int(indexes[k].item()))
+                seqs[k].append(inputs[k])
 
         sampled = [torch.tensor(seq, dtype=torch.int, device=self.device) for seq in seqs]
         return logits, sampled

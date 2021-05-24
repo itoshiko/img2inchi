@@ -30,7 +30,7 @@ def predict_all(model, vocab, path, batch_size):
     split_array = np.array_split(np.array(img_list), arr_count)
     for arr in split_array:
         img_list = torch.from_numpy(arr).float()
-        result = model.predict(img_list, mode="greedy")
+        result = model.predict(img_list, mode="beam")
         for j in range(len(result)):
             print(vocab.decode(result[j]))
 

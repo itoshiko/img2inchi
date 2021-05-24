@@ -1,15 +1,16 @@
+
 from base import BaseModel
 from data_gen import get_dataLoader
 from pkg.utils.BeamSearchLSTM import BeamSearchLSTM
 from pkg.utils.BeamSearchTransformer import BeamSearchTransformer
-from model import SelfCritical
 from math import ceil
 
 import torch
+import Levenshtein
 from torch import Tensor
 
 from pkg.utils.ProgBar import ProgressBar
-from pkg.utils.utils import flatten_list
+from pkg.utils.utils import flatten_list, split_list
 
 
 class Img2InchiModel(BaseModel):
@@ -59,6 +60,9 @@ class Img2InchiModel(BaseModel):
         train_loader = get_dataLoader(data_set, batch_size=batch_size, model_name=self.model_name)
         return train_loader
         
+    def scst(self, train_set, val_set):
+        self._run_scst(train_set, val_set)
+
     def _run_train_epoch(self, train_set, val_set, lr_schedule):
         """Performs an epoch of training
                 Args:
@@ -141,35 +145,37 @@ class Img2InchiModel(BaseModel):
                 """
         # logging
         self.model.train()
+        self.model.scst()
         batch_size = self._config.batch_size
         device = self.device
-        SCST_predict_mode = self._config.SCST_predict_mode
         scst_lr = self._config.SCST_lr
         train_loader = self.prepare_data(batch_size, train_set)
         nbatches = len(train_loader)
         progress_bar = ProgressBar(nbatches)
         losses = 0
         optimizer = self.getOptimizer(lr_method="adam", lr=scst_lr)
-        for t in range(self.max_len, 0, -5):
+        criterion = torch.nn.CrossEntropyLoss(reduction='none')
+        for t in range(50, 0, -5):
             for i, (img, seq) in enumerate(train_loader):
                 img = img.to(device)
                 seq = seq.to(device)
-                seq_input = seq[:, :-1]
                 optimizer.zero_grad()
                 seq_out = seq[:, 1:]
-                gts = []
-                for i in range(batch_size):
-                    gts.append(self._vocab.decode(seq[i, :]))
-                logits, sampled_seq = self.sample(img=img, gts=seq_out, forcing_num=t)
-
-                loss = self.criterion(logits.reshape(-1, logits.shape[-1]), seq_out.reshape(-1))
-                predict_seq = self.predict(img, mode=SCST_predict_mode)
-                reward = SelfCritical.calculate_reward(sampled_seq, predict_seq, gts)
-                loss *= reward["sample"] - reward["predict"]
+                logits, sampled_seq = self.sample(img=img, gts=seq_out, forcing_num=0)
+                loss = criterion(logits.transpose(1, 2).contiguous(), seq_out)
+                gts = [self._vocab.decode(seq[i, :]) for i in range(batch_size)]
+                more_sample = self.sample_decode(img, num_samples=10)
+                sampled_reward = self.calculate_reward(sampled_seq, gts)
+                baseline = torch.stack([self.calculate_reward(sample, gts) for sample in more_sample])
+                baseline = torch.mean(baseline, dim=0)
+                loss = torch.mean(torch.mean(loss * (sampled_reward - baseline).unsqueeze(-1), dim=1))
                 loss.backward()
                 optimizer.step()
                 losses += loss.item()
-                progress_bar.update(i + 1, [("loss", loss), ("lr", scst_lr)])
+                self.model.clear_cache()
+                pr = self.predict(img, 'greedy')
+                progress_bar.update(i + 1, [("loss", loss.item()), ("lr", optimizer.param_groups[0]['lr']), 
+                                    ("reward", torch.mean(self.calculate_reward(pr, gts)).item())])
             self.logger.info("- Training: {}".format(progress_bar.info))
             self.logger.info("- Config: (before evaluate, we need to see config)")
             self._config.show(fun=self.logger.info)
@@ -196,6 +202,37 @@ class Img2InchiModel(BaseModel):
     def sample(self, img: Tensor, gts: Tensor, forcing_num: int):
         img = img.to(self.device)
         model = self.model
-        encodings = model.encode(img)
-        result = self.beam_search.sample(encode_memory=encodings, gts=gts, forcing_num=forcing_num)
+        with torch.no_grad():
+            encodings = model.encode(img)
+        result = self.beam_search.sample(encode_memory=encodings, gts=gts, forcing_num=forcing_num, vocab_size=self._config.vocab_size)
         return result
+    
+    def sample_decode(self, img: Tensor, num_samples: int=5):
+        img = img.to(self.device)
+        model = self.model
+        with torch.no_grad():
+            enc = model.encode(img)
+            batch_size = enc.shape[0]
+            encodings = torch.zeros((batch_size * num_samples, enc.shape[1], enc.shape[2]), device=self.device)
+            for k in range(batch_size):
+                encodings[k::batch_size] = enc[k]
+            del enc
+            result = self.beam_search.sample_decode(encode_memory=encodings)
+        return split_list(result, batch_size)
+
+    def calculate_reward(self, seq: 'list[Tensor]', gt: 'list[str]'):
+        """
+                Calculate Levenshtein distance of sample sequence and predict sequence
+                Args:
+                    seq: sequence from sample
+                    gt: ground-truth sequence
+                Returns:
+                    reward: (dict) reward["sample"], reward["predict"]
+                """
+        with torch.no_grad():
+            batch_size = len(gt)
+            seq = self._vocab.decode_batch(seq)
+            sample_reward = torch.zeros(batch_size, device=self.device)
+            for i in range(batch_size):
+                sample_reward[i] = 1 - Levenshtein.distance(seq[i], gt[i]) / len(gt[i])
+        return sample_reward
