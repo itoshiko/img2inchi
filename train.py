@@ -50,7 +50,7 @@ def main(model_name, instance, data, vocab, model, output):
     elif model_name == "transformer":
         model = Img2InchiTransformerModel(config, dir_output, my_vocab, need_output=True)
         model.build_train(config)
-        model.scst(train_set, val_set)
+        model.train(train_set, val_set)
 
 
 if __name__ == "__main__":
