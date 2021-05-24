@@ -4,7 +4,7 @@ import torch
 import Levenshtein
 
 
-def calculate_reward(sample, predict, gt):
+def calculate_reward(sample: 'list[str]', predict: 'list[str]', gt: 'list[str]'):
     """
                 Calculate Levenshtein distance of sample sequence and predict sequence
                 Args:
@@ -15,13 +15,7 @@ def calculate_reward(sample, predict, gt):
                     reward: (dict) reward["sample"], reward["predict"]
                 """
     with torch.no_grad():
-        if sample.ndim == 1:
-            sample.unsqueeze(0)
-        if predict.ndim == 1:
-            predict.unsqueeze(0)
-        if gt.ndim == 1:
-            predict.unsqueeze(0)
-        batch_size = gt.shape[0]
+        batch_size = len(gt)
         sample_reward = torch.zeros(batch_size)
         predict_reward = torch.zeros(batch_size)
         for i in range(batch_size):

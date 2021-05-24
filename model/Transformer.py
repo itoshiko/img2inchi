@@ -300,6 +300,14 @@ class Img2SeqTransformer(nn.Module):
         memory = self.encode(img)
         return self.decode(seq, memory)
 
+    def scst(self, run=True):
+        if run:
+            for param in self.transformer_encoder.parameters():
+                param.requires_grad = False
+        else:
+            for param in self.transformer_encoder.parameters():
+                param.requires_grad = True
+
     def encode(self, img: Tensor):
         '''
         batch_size = img.shape[0]
