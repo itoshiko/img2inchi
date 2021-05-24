@@ -18,9 +18,11 @@ from pkg.utils.vocab import vocab as vocabulary
               help='Path to vocab yaml config')
 @click.option('--model', default="",
               help='Path to model yaml config')
+@click.option('--scst', default=False,
+              help='Use SCST training method')
 @click.option('--output', default="./model weights",
               help='Path to save trained model')
-def main(model_name, instance, data, vocab, model, output):
+def main(model_name, instance, data, vocab, model, scst, output):
     # Load configs
     dir_output = output
     if model == "":
@@ -50,7 +52,11 @@ def main(model_name, instance, data, vocab, model, output):
     elif model_name == "transformer":
         model = Img2InchiTransformerModel(config, dir_output, my_vocab, need_output=True)
         model.build_train(config)
-        model.scst(train_set, val_set)
+        if scst:
+            print("Use SCST to train")
+            model.scst(train_set, val_set)
+        else:
+            model.train(train_set, val_set)
 
 
 if __name__ == "__main__":
