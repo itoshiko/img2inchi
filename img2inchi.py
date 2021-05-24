@@ -27,6 +27,8 @@ class Img2InchiModel(BaseModel):
         self._init_scheduler(config.lr_scheduler)
         self._init_criterion(config.criterion_method)
         self._init_beamSearch(config)
+        if self.multi_gpu:
+            self._init_multi_gpu()
 
         self.logger.info("- done.")
 
@@ -63,7 +65,7 @@ class Img2InchiModel(BaseModel):
     def scst(self, train_set, val_set):
         self._run_scst(train_set, val_set)
 
-    def _run_train_epoch(self, train_set, val_set, lr_schedule):
+    def _run_train_epoch(self, model, optimizer, train_set, val_set, lr_schedule):
         """Performs an epoch of training
                 Args:
                     train_set: Dataset instance
@@ -73,7 +75,7 @@ class Img2InchiModel(BaseModel):
                     score: (float) model will select weights that achieve the highest score
                 """
         # logging
-        self.model.train()
+        model.train()
         batch_size = self._config.batch_size
         device = self.device
         accumulate_num = self._config.gradient_accumulate_num
@@ -82,23 +84,23 @@ class Img2InchiModel(BaseModel):
         nbatches = ceil(batch_num / accumulate_num)
         progress_bar = ProgressBar(nbatches)
         losses = 0
-        self.optimizer.zero_grad()
+        optimizer.zero_grad()
         for i, (img, seq) in enumerate(train_loader):
             img = img.to(device)
             seq = seq.to(device)
             seq_input = seq[:, :-1]
-            logits = self.model(img, seq_input)  # (batch_size, lenth, vocab_size)
+            logits = model(img, seq_input)  # (batch_size, lenth, vocab_size)
             seq_out = seq[:, 1:]
             loss = self.criterion(logits.reshape(-1, logits.shape[-1]), seq_out.reshape(-1))
             losses += loss.item()
             loss.backward()
             if ((i + 1) % accumulate_num == 0) or (i + 1 == batch_num):
-                self.optimizer.step()
-                self.optimizer.zero_grad()
+                optimizer.step()
+                optimizer.zero_grad()
                 # update learning rate
                 lr_schedule.step()
                 progress_bar.update((i + 1) // accumulate_num,
-                                    [("loss", loss.item()), ("lr", self.optimizer.param_groups[0]['lr'])])
+                                    [("loss", loss.item()), ("lr", optimizer.param_groups[0]['lr'])])
         self.logger.info("- Training loss: {}".format(losses / batch_num))
         self.logger.info("- Training: {}".format(progress_bar.info))
         self.logger.info("- Config: (before evaluate, we need to see config)")
