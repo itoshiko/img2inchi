@@ -1,8 +1,10 @@
+from logging import config
 import os
 import time
 import logging
 
 import torch
+from torch.optim import optimizer
 
 from pkg.utils.general import Config
 from pkg.utils.general import get_logger, init_dir
@@ -24,7 +26,7 @@ class BaseModel(object):
         init_dir(output_dir)
         self._model_dir = output_dir + "/" + self._config.instance
         init_dir(self._model_dir)
-        self._model_path = self._model_dir + "/model.cpkt"
+        self._model_path = self._model_dir + "/model.ckpt"
         self._config_export_path = self._model_dir
 
     def build_train(self, config=None):
