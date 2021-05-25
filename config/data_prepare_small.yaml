@@ -3,9 +3,9 @@ prcd_dir: 'data/prcd_data_small'
 train_labels: 'train_labels.csv'
 val_set_labels: 'small_val_set_labels.csv'
 train_set_labels: 'small_train_set_labels.csv'
-val_size: 20000
-train_size: 80000
-build_vocab: True
+val_size: 2000
+train_size: 8000
+build_vocab: FALSE
 split_data_set: True
 prc_img: True
 img_width: 512

@@ -5,9 +5,6 @@ import cv2
 
 
 def pad_resize(img, config):
-    if config["phology"]:
-        img = cv2.morphologyEx(img, cv2.MORPH_CLOSE,
-                               cv2.getStructuringElement(cv2.MORPH_CROSS, (3, 3)))
     h, w = img.shape
     pad_h, pad_v = 0, 0
     hw_ratio = (h / w) - (config["img_height"] / config["img_width"])
@@ -16,7 +13,7 @@ def pad_resize(img, config):
     else:
         wh_ratio = (w / h) - (config["img_width"] / config["img_height"])
         pad_v = int(abs(wh_ratio) * h // 2)
-    img = np.pad(img, [(pad_h, pad_h), (pad_v, pad_v)], mode='constant')
+    img = np.pad(img, [(pad_h, pad_h), (pad_v, pad_v)], mode='constant', constant_values=255)
     img = cv2.resize(img, (config["img_width"], config["img_height"]), interpolation=cv2.INTER_LANCZOS4)
     return img
 
@@ -39,6 +36,9 @@ def prc_img(img_id, source_root="train", target_root="prcd_data", config=None):
     elif config["threshold"] > 0:
         img = cv2.threshold(img, config["threshold"], 255, cv2.THRESH_BINARY)
     img = cv2.bitwise_not(img)
+    if config["phology"]:
+        img = cv2.morphologyEx(img, cv2.MORPH_CLOSE,
+                               cv2.getStructuringElement(cv2.MORPH_CROSS, (3, 3)))
     save_img(img=img, root=target_root, img_id=img_id)
 
     '''
