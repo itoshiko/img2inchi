@@ -10,6 +10,9 @@ split_data_set: TRUE
 prc_img: TRUE
 img_width: 512
 img_height: 256
+# The threshold of thresholding, use Otsu if-1
 threshold: 50
 num_workers: 16
 chunk_size: 400
+thresholding: FALSE
+phology: TRUE

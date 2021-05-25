@@ -29,9 +29,13 @@ def main(root, pre_config, vocab_config):
     train_set_labels = data_config.train_set_labels
     img_width = data_config.img_width
     img_height = data_config.img_height
-    threshold = data_config.threshold
+    if data_config.thresholding:
+        threshold = data_config.threshold
+    else:
+        threshold = 0
     num_workers = data_config.num_workers
     chunk_size = data_config.chunk_size
+    phology = data_config.phology
     data_set = prc.read_data_set(root=root, dir_name=origin_dir, file_name=train_labels)
     if BUILD_VOCAB:
         print('Build the vocabulary')
@@ -53,7 +57,7 @@ def main(root, pre_config, vocab_config):
     if PRC_IMG:
         train_img_list = train_set['image_id'].values
         val_img_list = val_set['image_id'].values
-        __config = {"img_width": img_width, "img_height": img_height, "threshold": threshold}
+        __config = {"img_width": img_width, "img_height": img_height, "threshold": threshold, "phology": phology}
         print('Preprocess the images of training set')
         prc.prc_imgs(config=__config, root=root, origin_dir_name=origin_dir, prcd_dir_name=prcd_dir,
                      name='train', img_list=train_img_list, num_workers=num_workers, chunk_size=chunk_size)
