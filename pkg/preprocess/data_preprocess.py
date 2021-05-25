@@ -44,11 +44,11 @@ def create_data_dirs(root, dir_name, name):
     return data_rt
 
 
-def prc_imgs(config, root, origin_dir_name, prcd_dir_name, name, img_list, num_workers=8):
+def prc_imgs(config, root, origin_dir_name, prcd_dir_name, name, img_list, num_workers=8, chunk_size=400):
     origin_root = join(root, origin_dir_name, 'train')
     prcd_root = create_data_dirs(root, prcd_dir_name, name)
     num_workers = min(num_workers, cpu_count())
-    chunk_size = 50
+    print("num_workers:", num_workers)
     pool = Pool(processes=num_workers)
     img_prc = img_processer(chunk_size, origin_root, prcd_root, img_list, config)
     argument_list = range(0, len(img_list), chunk_size)

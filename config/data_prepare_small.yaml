@@ -12,3 +12,4 @@ img_width: 512
 img_height: 256
 threshold: 50
 num_workers: 12
+chunk_size: 400

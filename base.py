@@ -1,4 +1,3 @@
-from logging import config
 import os
 import time
 import logging
@@ -14,6 +13,7 @@ class BaseModel(object):
     def __init__(self, config, output_dir, need_output=True):
         self._config = config
         self.device = torch.device(config.device if torch.cuda.is_available() else 'cpu')
+        self.multi_gpu = config.multi_gpu and torch.cuda.device_count() > 1
         if need_output:
             self._output_dir = output_dir
             self._init_relative_path(output_dir)
@@ -34,6 +34,8 @@ class BaseModel(object):
         self._init_optimizer(config.lr_method, config.lr_init)
         self._init_scheduler(config.lr_scheduler)
         self._init_criterion(config.criterion_method)
+        if self.multi_gpu:
+            self._init_multi_gpu()
 
         self.logger.info("- done.")
 
@@ -42,8 +44,10 @@ class BaseModel(object):
         self.logger.info("   - " + str(self.device))
         self.model = self.getModel()
         self.model = self.model.to(self.device)
+
         # if model exists, load it
         self.auto_restore()
+
 
     def _init_optimizer(self, lr_method="adam", lr=1e-3):
         """Defines self.optimizer that performs an update on a batch
@@ -75,6 +79,11 @@ class BaseModel(object):
         # 3. criterion
         print("  - " + criterion_method)
         self.criterion = self.getCriterion(criterion_method)
+
+    def _init_multi_gpu(self):
+        device_ids = range(torch.cuda.device_count())
+        self.model = torch.nn.DataParallel(self.model, device_ids = device_ids)
+        print("  - multi-gpu: cuda:", *device_ids)
 
     # ! MUST OVERWRITE
     def getModel(self):
@@ -138,8 +147,13 @@ class BaseModel(object):
         """Saves model"""
         self.logger.info("- Saving model...")
         # save state as a dict
-        checking_point = {"net": self.model.state_dict(),
-                          "optimizer": self.optimizer.state_dict(),
+        if self.multi_gpu:
+            model = self.model.module
+        else:
+            model = self.model
+        optimizer = self.optimizer
+        checking_point = {"net": model.state_dict(),
+                          "optimizer": optimizer.state_dict(),
                           "epoch": self.now_epoch,
                           "scheduler": self.scheduler.state_dict()}
         torch.save(checking_point, self._model_path)
@@ -166,14 +180,16 @@ class BaseModel(object):
             self.now_epoch = self.old_model["epoch"]
         else:
             self.now_epoch = 0
-
+        
+        model = self.model
+        optimizer = self.optimizer
         for epoch in range(self.now_epoch, config.n_epochs):
             # logging
             tic = time.time()
             self.logger.info("Epoch {:}/{:}".format(epoch + 1, config.n_epochs))
 
             # epoch
-            score = self._run_train_epoch(train_set, val_set, self.scheduler)
+            score = self._run_train_epoch(model, optimizer, train_set, val_set, self.scheduler)
             self.now_epoch += 1
 
             # save weights if we have new best score on eval
@@ -210,7 +226,7 @@ class BaseModel(object):
         self.optimizer.step()
 
     # ! MUST OVERWRITE
-    def _run_train_epoch(self, train_set, val_set, lr_schedule):
+    def _run_train_epoch(self, model, optimizer, train_set, val_set, lr_schedule):
         """Model_specific method to overwrite
         Performs an epoch of training
         Args:

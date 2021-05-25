@@ -12,8 +12,10 @@ from pkg.utils.general import Config
               help="Path to your project root")
 @click.option('--pre_config', default="./config/data_prepare_small.yaml",
               help='Path to config yaml for data preparation')
-def main(root, pre_config):
-    data_config = Config([pre_config])
+@click.option('--vocab_config', default="./config/vocab.yaml",
+              help='Path to vocabulary config yaml for data preparation')
+def main(root, pre_config, vocab_config):
+    data_config = Config([pre_config, vocab_config])
     origin_dir = data_config.origin_dir
     prcd_dir = data_config.prcd_dir
     vocab_dir = data_config.vocab_dir
@@ -29,6 +31,7 @@ def main(root, pre_config):
     img_height = data_config.img_height
     threshold = data_config.threshold
     num_workers = data_config.num_workers
+    chunk_size = data_config.chunk_size
     data_set = prc.read_data_set(root=root, dir_name=origin_dir, file_name=train_labels)
     if BUILD_VOCAB:
         print('Build the vocabulary')
@@ -53,10 +56,10 @@ def main(root, pre_config):
         __config = {"img_width": img_width, "img_height": img_height, "threshold": threshold}
         print('Preprocess the images of training set')
         prc.prc_imgs(config=__config, root=root, origin_dir_name=origin_dir, prcd_dir_name=prcd_dir,
-                     name='train', img_list=train_img_list, num_workers=num_workers)
+                     name='train', img_list=train_img_list, num_workers=num_workers, chunk_size=chunk_size)
         print('Preprocess the images of validation set')
         prc.prc_imgs(config=__config, root=root, origin_dir_name=origin_dir, prcd_dir_name=prcd_dir,
-                     name='validate', img_list=val_img_list, num_workers=num_workers)
+                     name='validate', img_list=val_img_list, num_workers=num_workers, chunk_size=chunk_size)
 
 
 if __name__ == "__main__":
