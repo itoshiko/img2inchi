@@ -83,7 +83,8 @@ class Img2InchiTransformerModel(Img2InchiModel):
                           "epoch": self.now_epoch,
                           "scheduler": self.scheduler.state_dict()}
         if self._config.transformer["tr_extractor"]:
-            torch.save(model.features_extractor.extractor.state_dict(), self._model_path)
-        torch.save(checking_point, join(self._model_dir, 'pretrained_' + self._config.transformer['extractor_name'] + '.pth'))
+            torch.save(model.features_extractor.extractor.state_dict(), join(self._model_dir, 'pretrained_' + 
+                        self._config.transformer['extractor_name'] + '.pth'))
+        torch.save(checking_point, self._model_path)
         self._config.save(self._config_export_path)
         self.logger.info("- Saved model in {}".format(self._model_dir))
