@@ -39,10 +39,10 @@ def main(model_name, instance, data, vocab, model, scst, output):
                                annotations_file=config.train_annotations_file,
                                vocab=my_vocab)
     val_set = Img2SeqDataset(root=config.path_val_root,
-                               data_dir=config.path_val_data_dir,
-                               img_dir=config.path_val_img_dir,
-                               annotations_file=config.val_annotations_file,
-                               vocab=my_vocab)
+                             data_dir=config.path_val_data_dir,
+                             img_dir=config.path_val_img_dir,
+                             annotations_file=config.val_annotations_file,
+                             vocab=my_vocab)
 
     # Build model and train
     if model_name == "lstm":
