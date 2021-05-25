@@ -9,6 +9,7 @@ transformer:
   nhead: 8
   dim_feedforward: 1024
   dropout: 0.2
+model_name: 'transformer'
 max_seq_len: 300
 warmup_steps: 2000
 lr_init: 1

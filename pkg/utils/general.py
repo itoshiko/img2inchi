@@ -2,22 +2,26 @@ import os
 import logging.config
 import yaml
 
-from shutil import copyfile
+from pkg.utils.utils import join
 
 
-def setup_logger(default_path='./config/logging_config.yaml', default_level=logging.INFO):
+def setup_logger(log_path="./logs", default_path='./config/logging_config.yaml', default_level=logging.INFO):
     path = default_path
     if os.path.exists(path):
         with open(path, 'rt') as f:
-            config = yaml.load(f.read())
+            config = yaml.load(f.read(), Loader=yaml.FullLoader)
+        f = config['handlers']['info_file_handler']['filename']
+        config['handlers']['info_file_handler']['filename'] = join(log_path, f)
+        f = config['handlers']['error_file_handler']['filename']
+        config['handlers']['error_file_handler']['filename'] = join(log_path, f)
         logging.config.dictConfig(config)
     else:
         logging.basicConfig(level=default_level)
         print('the input path doesn\'t exist')
 
 
-def get_logger(default_path='./config/logging_config.yaml'):
-    setup_logger(default_path)
+def get_logger(log_path="./logs", default_path='./config/logging_config.yaml'):
+    setup_logger(log_path=log_path, default_path=default_path)
     logging.info('Logger initialized', exc_info=True)
     return logging.getLogger()
 
@@ -67,4 +71,4 @@ class Config:
             fun(yaml.dump(self.source, ))
         else:
             with open(self.source) as f:
-                fun(yaml.dump(yaml.load(f), ))
+                fun(yaml.dump(yaml.load(f, Loader=yaml.FullLoader), ))

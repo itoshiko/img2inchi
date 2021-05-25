@@ -17,7 +17,7 @@ class Img2InchiLstmModel(Img2InchiModel):
     def getModel(self):
         img_w = self._config.img2seq['img_w']
         img_h = self._config.img2seq['img_h']
-        vocab_size = self._config.vocab_size
+        vocab_size = self.vocab_size
         dim_encoder = self._config.img2seq['dim_encoder']
         dim_decoder = self._config.img2seq['dim_decoder']
         dim_attention = self._config.img2seq['dim_attention']

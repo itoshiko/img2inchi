@@ -1,10 +1,9 @@
-from logging import config
 import os
+from pkg.utils.utils import join
 import time
 import logging
 
 import torch
-from torch.optim import optimizer
 
 from pkg.utils.general import Config
 from pkg.utils.general import get_logger, init_dir
@@ -18,7 +17,7 @@ class BaseModel(object):
         if need_output:
             self._output_dir = output_dir
             self._init_relative_path(output_dir)
-            self.logger = get_logger(output_dir + "model.log")
+            self.logger = get_logger(log_path=self._log_dir)
         else:
             self.logger = logging.getLogger()
 
@@ -26,6 +25,8 @@ class BaseModel(object):
         init_dir(output_dir)
         self._model_dir = output_dir + "/" + self._config.instance
         init_dir(self._model_dir)
+        self._log_dir = self._model_dir + "/logs"
+        init_dir(self._log_dir)
         self._model_path = self._model_dir + "/model.ckpt"
         self._config_export_path = self._model_dir
 
@@ -37,6 +38,8 @@ class BaseModel(object):
         self._init_criterion(config.criterion_method)
         if self.multi_gpu:
             self._init_multi_gpu()
+        self.logger.info("- Config: ")
+        self._config.show(fun=self.logger.info)
 
         self.logger.info("- done.")
 
@@ -58,7 +61,7 @@ class BaseModel(object):
         """
         # 1. optimizer
         _lr_m = lr_method.lower()  # lower to make sure
-        print("  - " + _lr_m)
+        print("  - optimizer: " + _lr_m)
         self.optimizer = self.getOptimizer(_lr_m, lr)
         if self.is_resume:
             self.optimizer.load_state_dict(self.old_model["optimizer"])
@@ -69,7 +72,7 @@ class BaseModel(object):
             lr_scheduler: (string) learning rate schedule method, for example "CosineAnnealingLR"
         """
         # 2. scheduler
-        print("  - lr_scheduler " + lr_scheduler)
+        print("  - lr_scheduler: " + lr_scheduler)
         self.scheduler = self.getLearningRateScheduler(lr_scheduler)
 
     def _init_criterion(self, criterion_method="CrossEntropyLoss"):
@@ -78,13 +81,13 @@ class BaseModel(object):
             criterion_method: (string) criterion method, for example "CrossEntropyLoss"
         """
         # 3. criterion
-        print("  - " + criterion_method)
+        print("  - criterion: " + criterion_method)
         self.criterion = self.getCriterion(criterion_method)
 
     def _init_multi_gpu(self):
         device_ids = range(torch.cuda.device_count())
         self.model = torch.nn.DataParallel(self.model, device_ids = device_ids)
-        print("  - multi-gpu: cuda:", *device_ids)
+        self.logger.info("  - multi-gpu: cuda:", *device_ids)
 
     # ! MUST OVERWRITE
     def getModel(self):
