@@ -19,7 +19,7 @@ lr_scheduler: 'AwesomeScheduler'
 device: 'cuda:0'
 multi_gpu: True
 criterion_method: 'CrossEntropyLoss'
-n_epochs: 10
+n_epochs: 50
 SCST_predict_mode: 'greedy'
 SCST_lr: 0.000005
 gradient_accumulate_num: 8
