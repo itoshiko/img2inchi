@@ -29,8 +29,6 @@ def main(model_name, instance, data, vocab, model, scst, output):
         model = './config/' + model_name + '_config.yaml'
     config = Config([data, vocab, model])
     my_vocab = vocabulary(root=config.path_train_root, vocab_dir=config.vocab_dir)
-    config.vocab_size = my_vocab.size
-    config.model_name = model_name
     config.instance = instance
     # Load datasets
     train_set = Img2SeqDataset(root=config.path_train_root,

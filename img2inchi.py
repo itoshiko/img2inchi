@@ -19,6 +19,7 @@ class Img2InchiModel(BaseModel):
         self.model_name = config.model_name
         self.max_len = config.max_seq_len
         self._vocab = vocab
+        self.vocab_size = vocab.size
 
     def build_train(self, config=None):
         self.logger.info("- Building model...")
@@ -29,6 +30,8 @@ class Img2InchiModel(BaseModel):
         self._init_beamSearch(config)
         if self.multi_gpu:
             self._init_multi_gpu()
+        self.logger.info("- Config: ")
+        self._config.show(fun=self.logger.info)
 
         self.logger.info("- done.")
 
@@ -100,8 +103,6 @@ class Img2InchiModel(BaseModel):
                 progress_bar.update((i + 1) // accumulate_num,
                                     [("loss", loss.item()), ("lr", optimizer.param_groups[0]['lr'])])
         self.logger.info("- Training: {}".format(progress_bar.info))
-        self.logger.info("- Config: (before evaluate, we need to see config)")
-        self._config.show(fun=self.logger.info)
 
         # evaluation
         scores = self.evaluate(val_set)
@@ -209,7 +210,7 @@ class Img2InchiModel(BaseModel):
         model = self.model
         with torch.no_grad():
             encodings = model.encode(img)
-        result = self.beam_search.sample(encode_memory=encodings, gts=gts, forcing_num=forcing_num, vocab_size=self._config.vocab_size)
+        result = self.beam_search.sample(encode_memory=encodings, gts=gts, forcing_num=forcing_num, vocab_size=self.vocab_size)
         return result
     
     def sample_decode(self, img: Tensor, num_samples: int=5):
