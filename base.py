@@ -28,8 +28,6 @@ class BaseModel(object):
         init_dir(self._model_dir)
         self._log_dir = self._model_dir + "/logs"
         init_dir(self._log_dir)
-        self._model_path = self._model_dir + "/model.ckpt"
-        self._config_export_path = self._model_dir
 
     def build_train(self, config=None):
         self.logger.info("- Building model...")
@@ -51,7 +49,8 @@ class BaseModel(object):
         self.model = self.model.to(self.device)
 
         # if model exists, load it
-        self.auto_restore()
+        if self.is_resume:
+            self.restore(map_location=str(self.device))
 
 
     def _init_optimizer(self, lr_method="adam", lr=1e-3):
@@ -126,26 +125,13 @@ class BaseModel(object):
             raise NotImplementedError("Unknown Criterion Method {}".format(criterion_method))
 
     # 3. save and restore
-    def auto_restore(self):
-        if os.path.exists(self._model_path) and os.path.isfile(self._model_path):
-            if os.path.exists(self._config_export_path + '/' + self._config.export_name):
-                old_config = Config(self._config_export_path + '/' + self._config.export_name)
-                old_model_name = old_config.model_name
-                assert (old_model_name == self._config.model_name), "Type of restored model not match command line input"
-                self.logger.info("  - found trained model, try to restore...")
-                self.is_resume = True
-                self.restore(map_location=str(self.device))
-                return
-        self.is_resume = False
-        self.logger.info("  - didn't find trained model, build a new one...")
-
     def restore(self, map_location='cpu'):
         """Reload weights into session
         Args:
             map_location: 'cpu' or 'gpu:0'
         """
         self.logger.info("- Reloading the latest trained model...")
-        self.old_model = torch.load(self._model_path, map_location=self.device)
+        self.old_model = torch.load(self._model_path, map_location)
         self.model.load_state_dict(self.old_model["net"])
 
     def save(self):
