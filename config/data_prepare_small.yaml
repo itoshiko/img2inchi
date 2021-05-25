@@ -15,4 +15,4 @@ threshold: 50
 num_workers: 12
 chunk_size: 400
 thresholding: FALSE
-phology: false
+phology: TRUE
