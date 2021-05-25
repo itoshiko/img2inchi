@@ -7,6 +7,7 @@ import torch
 
 from pkg.utils.general import Config
 from pkg.utils.general import get_logger, init_dir
+from visualization.structure import generate_structure
 
 
 class BaseModel(object):
@@ -179,6 +180,7 @@ class BaseModel(object):
         """
         config = self._config
         best_score = None
+        # generate_structure(self.model, config)
         if self.is_resume:
             self.now_epoch = self.old_model["epoch"]
         else:
