@@ -1,11 +1,11 @@
-from typing import Optional, NewType, TypeVar
+from model.Extractor import FeaturesExtractor
+from typing import Optional, NewType
 
 import torch
 import torch.nn as nn
 import torch.nn.functional as F
 from torch import Tensor
 from torch.nn import Dropout, LayerNorm, Linear
-from torchvision import models
 
 from model.MultiHeadedAttention import MultiHeadedAttention, multiLinear, clones
 from model.PositionalEncoding import PositionalEncodingNd
@@ -241,50 +241,17 @@ class TransformerDecoder(nn.Module):
         for i in range(self.num_layers):
             self.layers[i].clear_cache()
 
-class FeaturesExtractor(nn.Module):
-    def __init__(self, num_features: int=512, output_size: 'tuple[int, int]'=(16, 32), 
-                extractor_name: str='resnet34', tr_extractor: bool=False):
-        super(FeaturesExtractor, self).__init__()
-        if extractor_name == 'resnet101':
-            net = models.resnet101(pretrained=False)
-            net.load_state_dict(torch.load(pretrained + '/ResNet101.pth'))
-            dft_ft = 2048
-        elif extractor_name == 'resnet34':
-            net = models.resnet34(pretrained=False)
-            net.load_state_dict(torch.load(pretrained + '/ResNet34.pth'))
-            dft_ft = 512
-        modules = list(net.children())[:-2]   # delete the last avgpool layer and fc layer.
-        del net
-        self.extractor = nn.Sequential(*modules)
-        if not tr_extractor:
-            for param in self.extractor.parameters():
-                param.requires_grad = False
-        self.avgpool = nn.AdaptiveAvgPool2d(output_size=output_size) if output_size else None
-        self.fc = Linear(dft_ft, num_features) if num_features != dft_ft else None
-
-    def forward(self, img: Tensor):
-        '''
-        :param img: (batch_size, n_channel, H, W)
-        :return: features. Shape: (output_w, output_h, batch_size, n_feature)
-        '''
-        if self.avgpool:
-            ft = self.avgpool(self.extractor(img))      # (batch_size, n_feature, *output_size)
-        else:
-            ft = self.extractor(img)                    # (batch_size, n_feature, *default_size)
-        ft = ft.permute(0, 2, 3, 1).contiguous()        # (batch_size, output_w, output_h, n_feature)
-        return self.fc(ft) if self.fc else ft
-
 
 class Img2SeqTransformer(nn.Module):
-    def __init__(self, feature_size: 'tuple[int, int]', extractor_name: str, max_seq_len: int,
-                tr_extractor: bool, num_encoder_layers: int, num_decoder_layers: int,
-                d_model: int, nhead: int, vocab_size: int,
+    def __init__(self, feature_size: 'tuple[int, int]', extractor_name: str, pretrain: str,
+                max_seq_len: int, tr_extractor: bool, num_encoder_layers: int, 
+                num_decoder_layers: int, d_model: int, nhead: int, vocab_size: int,
                 dim_feedforward: int = 1024, dropout: float = 0.1):
         super(Img2SeqTransformer, self).__init__()
         self.device = 'cuda:0' if torch.cuda.is_available() else 'cpu'
         self.d_model = d_model
         self.features_extractor = FeaturesExtractor(num_features=d_model, output_size=feature_size, 
-                                                extractor_name=extractor_name, tr_extractor=tr_extractor)
+                                                extractor_name=extractor_name, pretrain=pretrain, tr_extractor=tr_extractor)
         encoder_layer = EncoderLayer(d_model=d_model, nhead=nhead,
                                         dim_feedforward=dim_feedforward, dropout=dropout)
         self.transformer_encoder = TransformerEncoder(encoder_layer, num_layers=num_encoder_layers)

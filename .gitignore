@@ -139,6 +139,7 @@ dmypy.json
 *.csv
 *.png
 *.zip
+*.7z
 [0-9abcdef]/
 export_config.yaml
 *.gv
