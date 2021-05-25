@@ -1,11 +1,8 @@
-import os
-from pkg.utils.utils import join
-import time
 import logging
+import time
 
 import torch
 
-from pkg.utils.general import Config
 from pkg.utils.general import get_logger, init_dir
 from visualization.structure import generate_structure
 
