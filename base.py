@@ -25,6 +25,7 @@ class BaseModel(object):
         init_dir(self._model_dir)
         self._log_dir = self._model_dir + "/logs"
         init_dir(self._log_dir)
+        self._config_export_path = self._model_dir
 
     def build_train(self, config=None):
         self.logger.info("- Building model...")
