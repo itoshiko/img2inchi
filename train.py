@@ -42,7 +42,7 @@ def main(model_name, instance, data, vocab, model, scst, output):
                              img_dir=config.path_val_img_dir,
                              annotations_file=config.val_annotations_file,
                              vocab=my_vocab)
-    _model_path = output + '/' + instance + '/model.cpkt'
+    _model_path = output + '/' + instance + '/model.ckpt'
     _export_config_path = output + '/' + instance + '/export_config.yaml'
     print("model path: " + _model_path)
     print("config export path: " + _export_config_path)
