@@ -131,6 +131,7 @@ dmypy.json
 # model
 *.pth
 *.ckpt
+*.cpkt
 2021-*/
 
 # data
@@ -140,3 +141,5 @@ dmypy.json
 *.zip
 [0-9abcdef]/
 export_config.yaml
+*.gv
+*.pdf
