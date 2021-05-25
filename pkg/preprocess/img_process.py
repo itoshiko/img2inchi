@@ -16,7 +16,7 @@ def pad_resize(img, config):
     else:
         wh_ratio = (w / h) - (config["img_width"] / config["img_height"])
         pad_v = int(abs(wh_ratio) * h // 2)
-    img = np.pad(img, [(pad_h, pad_h), (pad_v, pad_v)], mode='constant')
+    img = np.pad(img, [(pad_h, pad_h), (pad_v, pad_v)], mode='constant', constant_values=255)
     img = cv2.resize(img, (config["img_width"], config["img_height"]), interpolation=cv2.INTER_LANCZOS4)
     return img
 
