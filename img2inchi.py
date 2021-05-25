@@ -19,6 +19,7 @@ class Img2InchiModel(BaseModel):
         self.model_name = config.model_name
         self.max_len = config.max_seq_len
         self._vocab = vocab
+        self.vocab_size = vocab.size
 
     def build_train(self, config=None):
         self.logger.info("- Building model...")
@@ -29,6 +30,8 @@ class Img2InchiModel(BaseModel):
         self._init_beamSearch(config)
         if self.multi_gpu:
             self._init_multi_gpu()
+        self.logger.info("- Config: ")
+        self._config.show(fun=self.logger.info)
 
         self.logger.info("- done.")
 
@@ -83,7 +86,6 @@ class Img2InchiModel(BaseModel):
         batch_num = len(train_loader)
         nbatches = ceil(batch_num / accumulate_num)
         progress_bar = ProgressBar(nbatches)
-        losses = 0
         optimizer.zero_grad()
         for i, (img, seq) in enumerate(train_loader):
             img = img.to(device)
@@ -92,7 +94,6 @@ class Img2InchiModel(BaseModel):
             logits = model(img, seq_input)  # (batch_size, lenth, vocab_size)
             seq_out = seq[:, 1:]
             loss = self.criterion(logits.reshape(-1, logits.shape[-1]), seq_out.reshape(-1))
-            losses += loss.item()
             loss.backward()
             if ((i + 1) % accumulate_num == 0) or (i + 1 == batch_num):
                 optimizer.step()
@@ -101,20 +102,18 @@ class Img2InchiModel(BaseModel):
                 lr_schedule.step()
                 progress_bar.update((i + 1) // accumulate_num,
                                     [("loss", loss.item()), ("lr", optimizer.param_groups[0]['lr'])])
-        self.logger.info("- Training loss: {}".format(losses / batch_num))
         self.logger.info("- Training: {}".format(progress_bar.info))
-        self.logger.info("- Config: (before evaluate, we need to see config)")
-        self._config.show(fun=self.logger.info)
 
         # evaluation
         scores = self.evaluate(val_set)
-        score = scores["Evaluate Loss"]
+        score = scores["score"]
 
         return score
 
     def _run_evaluate_epoch(self, test_set):
         self.model.eval()
         losses = 0
+        scores = 0
         batch_size = self._config.batch_size
         device = self.device
         test_loader = self.prepare_data(batch_size, test_set)
@@ -129,11 +128,13 @@ class Img2InchiModel(BaseModel):
                 seq_out = seq[:, 1:]
                 loss = self.criterion(logits.reshape(-1, logits.shape[-1]), seq_out.reshape(-1))
                 losses += loss.item()
-                progress_bar.update(i + 1, [("loss", losses / (i + 1))])
+                score = torch.mean(self.calculate_reward(torch.max(logits, dim=-1)[1], self._vocab.decode_batch(seq))).item()
+                scores += score
+                progress_bar.update(i + 1, [("loss", loss.item()), ("score", score)])
 
         self.logger.info("- Evaluating: {}".format(progress_bar.info))
 
-        return {"Evaluate Loss": losses / len(test_loader)}
+        return {"Evaluate Loss": losses / len(test_loader), "score": scores / len(test_loader)}
 
     def _run_scst(self, train_set, val_set):
         """Performs an epoch of Self-Critical Sequence Training
@@ -188,9 +189,12 @@ class Img2InchiModel(BaseModel):
 
         return score
 
-    def predict(self, img: Tensor, mode: str = "beam") -> 'list[Tensor]':
+    def predict(self, img: Tensor, mode: str = "greedy") -> 'list[Tensor]':
         img = img.to(self.device)
-        model = self.model
+        if self.multi_gpu:
+            model = self.model.module
+        else:
+            model = self.model
         result = None
         with torch.no_grad():
             encodings = model.encode(img)
@@ -206,7 +210,7 @@ class Img2InchiModel(BaseModel):
         model = self.model
         with torch.no_grad():
             encodings = model.encode(img)
-        result = self.beam_search.sample(encode_memory=encodings, gts=gts, forcing_num=forcing_num, vocab_size=self._config.vocab_size)
+        result = self.beam_search.sample(encode_memory=encodings, gts=gts, forcing_num=forcing_num, vocab_size=self.vocab_size)
         return result
     
     def sample_decode(self, img: Tensor, num_samples: int=5):
@@ -236,5 +240,5 @@ class Img2InchiModel(BaseModel):
             seq = self._vocab.decode_batch(seq)
             sample_reward = torch.zeros(batch_size, device=self.device)
             for i in range(batch_size):
-                sample_reward[i] = 1 - Levenshtein.distance(seq[i], gt[i]) / len(gt[i])
+                sample_reward[i] = 1 - (Levenshtein.distance(seq[i], gt[i]) / len(gt[i]))
         return sample_reward
