@@ -29,7 +29,7 @@ def main(model_name, instance, data, vocab, model, scst, output):
     if model == "":
         model = './config/' + model_name + '_config.yaml'
     config = Config([data, vocab, model])
-    my_vocab = vocabulary(root=config.path_train_root, vocab_dir=config.vocab_dir)
+    my_vocab = vocabulary(root=config.vocab_root, vocab_dir=config.vocab_dir)
     config.instance = instance
     # Load datasets
     train_set = Img2SeqDataset(root=config.path_train_root,
