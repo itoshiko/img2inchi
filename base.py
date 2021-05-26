@@ -160,8 +160,8 @@ class BaseModel(object):
         self.writer.add_scalar(tag="loss", scalar_value=loss, global_step=step)
 
     def write_eval(self, result: dict):
-        for key, data in result:
-            self.writer.add_scalar(tag=key, scalar_value=data, global_step=self.now_epoch)
+        for key in result:
+            self.writer.add_scalar(tag=key, scalar_value=result[key], global_step=self.now_epoch)
 
     # 4. train and evaluate
     def train(self, train_set, val_set):
