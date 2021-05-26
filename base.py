@@ -1,6 +1,8 @@
 import logging
 import time
 
+from tensorboardX import SummaryWriter
+
 import torch
 
 from pkg.utils.general import get_logger, init_dir
@@ -26,6 +28,7 @@ class BaseModel(object):
         self._log_dir = self._model_dir + "/logs"
         init_dir(self._log_dir)
         self._config_export_path = self._model_dir
+        self.write_path = self._model_dir + "/runs/" + time.strftime("%Y-%m-%d %H.%M.%S", time.localtime())
 
     def build_train(self, config=None):
         self.logger.info("- Building model...")
@@ -35,6 +38,7 @@ class BaseModel(object):
         self._init_criterion(config.criterion_method)
         if self.multi_gpu:
             self._init_multi_gpu()
+        self._init_writer()
         self.logger.info("- Config: ")
         self._config.show(fun=self.logger.info)
 
@@ -86,6 +90,9 @@ class BaseModel(object):
         device_ids = range(torch.cuda.device_count())
         self.model = torch.nn.DataParallel(self.model, device_ids = device_ids)
         self.logger.info("  - multi-gpu: cuda:", *device_ids)
+
+    def _init_writer(self):
+        self.writer = SummaryWriter(log_dir=self.write_path)
 
     # ! MUST OVERWRITE
     def getModel(self):
@@ -148,6 +155,13 @@ class BaseModel(object):
         torch.save(checking_point, self._model_path)
         self._config.save(self._config_export_path)
         self.logger.info("- Saved model in {}".format(self._model_dir))
+
+    def write_loss(self, step: int, loss: float):
+        self.writer.add_scalar(tag="loss", scalar_value=loss, global_step=step)
+
+    def write_eval(self, result: dict):
+        for key, data in result:
+            self.writer.add_scalar(tag=key, scalar_value=data, global_step=self.now_epoch)
 
     # 4. train and evaluate
     def train(self, train_set, val_set):

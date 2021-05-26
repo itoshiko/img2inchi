@@ -30,6 +30,7 @@ class Img2InchiModel(BaseModel):
         self._init_beamSearch(config)
         if self.multi_gpu:
             self._init_multi_gpu()
+        self._init_writer()
         self.logger.info("- Config: ")
         self._config.show(fun=self.logger.info)
 
@@ -78,6 +79,7 @@ class Img2InchiModel(BaseModel):
                     score: (float) model will select weights that achieve the highest score
                 """
         # logging
+        losses = 0
         model.train()
         batch_size = self._config.batch_size
         device = self.device
@@ -95,17 +97,20 @@ class Img2InchiModel(BaseModel):
             seq_out = seq[:, 1:]
             loss = self.criterion(logits.reshape(-1, logits.shape[-1]), seq_out.reshape(-1))
             loss.backward()
+            losses += loss.item()
             if ((i + 1) % accumulate_num == 0) or (i + 1 == batch_num):
                 optimizer.step()
                 optimizer.zero_grad()
                 # update learning rate
                 lr_schedule.step()
-                progress_bar.update((i + 1) // accumulate_num,
+                progress_bar.update(ceil((i + 1) / accumulate_num),
                                     [("loss", loss.item()), ("lr", optimizer.param_groups[0]['lr'])])
-        self.logger.info("- Training: {}".format(progress_bar.info))
+                self.write_loss(self.now_epoch * nbatches + ceil((i + 1) / accumulate_num), loss.item())
+        self.logger.info(f"- Training: - loss: {losses / len(train_loader)} - lr: {optimizer.param_groups[0]['lr']}")
 
         # evaluation
         scores = self.evaluate(val_set)
+        self.write_eval(scores)
         score = scores["score"]
 
         return score
