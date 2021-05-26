@@ -161,7 +161,7 @@ class BaseModel(object):
 
     def write_eval(self, result: dict):
         for key in result:
-            self.writer.add_scalar(tag=key, scalar_value=result[key], global_step=self.now_epoch)
+            self.writer.add_scalar(tag='eval_' + str(key), scalar_value=result[key], global_step=self.now_epoch)
 
     # 4. train and evaluate
     def train(self, train_set, val_set):
