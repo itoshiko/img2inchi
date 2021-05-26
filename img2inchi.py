@@ -105,7 +105,8 @@ class Img2InchiModel(BaseModel):
                 lr_schedule.step()
                 progress_bar.update(ceil((i + 1) / accumulate_num),
                                     [("loss", loss.item()), ("lr", optimizer.param_groups[0]['lr'])])
-                self.write_loss(self.now_epoch * nbatches + ceil((i + 1) / accumulate_num), loss.item())
+                if (i + 1) % (50 * accumulate_num) == 0:
+                    self.write_loss(self.now_epoch * nbatches + ceil((i + 1) / accumulate_num), loss.item())
         self.logger.info(f"- Training: - loss: {losses / len(train_loader)} - lr: {optimizer.param_groups[0]['lr']}")
 
         # evaluation
