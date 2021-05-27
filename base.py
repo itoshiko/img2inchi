@@ -183,6 +183,9 @@ class BaseModel(object):
             self.now_epoch = self.old_model["epoch"]
         else:
             self.now_epoch = 0
+        # all restored, delete attr to release memory
+        if hasattr(self, "old_model"):
+            delattr(self, "old_model")
         
         model = self.model
         optimizer = self.optimizer

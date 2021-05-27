@@ -1,5 +1,5 @@
 origin_dir: 'data/origin'
-prcd_dir: '/media/itoshiko/DATA/prcd_data'
+prcd_dir: '/data/prcd_data'
 train_labels: 'train_labels.csv'
 val_set_labels: 'val_set_labels.csv'
 train_set_labels: 'train_set_labels.csv'
@@ -15,4 +15,4 @@ threshold: 50
 num_workers: 16
 chunk_size: 400
 thresholding: FALSE
-phology: FALSE
+phology: TRUE

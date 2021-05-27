@@ -2,10 +2,10 @@ transformer:
   feature_size_1:
   feature_size_2:
   extractor_name: 'resnet34'
-  pretrain: ''
+  pretrain: './model weights/pretrained_resnet34.pth'
   tr_extractor: FALSE
-  num_encoder_layers: 2
-  num_decoder_layers: 4
+  num_encoder_layers: 3
+  num_decoder_layers: 6
   d_model: 512
   nhead: 8
   dim_feedforward: 1024

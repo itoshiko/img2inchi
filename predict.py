@@ -59,7 +59,7 @@ def interactive_shell(model, vocab):
                     img_list.append(img)
             img_list = torch.Tensor(img_list).float()
             result = model.predict(img_list, mode="greedy")
-            for i in range(model.shape[0]):
+            for i in range(result.shape[0]):
                 print(vocab.decode(result[i]))
 
 

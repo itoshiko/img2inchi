@@ -10,7 +10,6 @@ from img2inchi import Img2InchiModel
 from img2inchi_transformer import Img2InchiTransformerModel
 from pkg.utils.vocab import vocab as vocabulary
 from predict import pre_process
-from pkg.utils.ProgBar import ProgressBar
 
 
 def predict_all(model, vocab, path, batch_size):
@@ -28,7 +27,7 @@ def predict_all(model, vocab, path, batch_size):
                 _, img = pre_process(img)
                 img = np.tile(img, (3, 1, 1))
                 img_list.append(img)
-                img_name_list.append(prefix + file[0:-4])
+                img_name_list.append(file[0:-4])
                 img_count += 1
     # split array
     arr_count = img_count // batch_size + 1
@@ -36,7 +35,7 @@ def predict_all(model, vocab, path, batch_size):
     seq = []
     for arr in split_array:
         img_list = torch.from_numpy(arr).float()
-        seq = seq + model.predict(img_list, mode="greedy")
+        seq = seq + vocab.decode_batch(model.predict(img_list, mode="beam"))
     return seq, img_name_list
 
 
@@ -97,12 +96,14 @@ def main(model_path, data_path, batch_size, csv_filename):
     for directory in dir_list:
         small_seq_list, small_name_list = predict_all(model, my_vocab, directory, batch_size)
         seq_list = seq_list + small_seq_list
+        name_list = name_list + small_name_list
         if len(seq_list) > 5000:
             write_csv(seq_list, name_list, os.path.join(data_path, csv_filename))
             seq_list.clear()
             name_list.clear()
         i += 1
         print('Processed {} folders'.format(i))
+    write_csv(seq_list, name_list, os.path.join(data_path, csv_filename))
 
 
 if __name__ == '__main__':
