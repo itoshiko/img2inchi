@@ -80,6 +80,7 @@ class Img2InchiModel(BaseModel):
                 """
         # logging
         losses = 0
+        scores = 0
         model.train()
         batch_size = self._config.batch_size
         device = self.device
@@ -98,21 +99,24 @@ class Img2InchiModel(BaseModel):
             loss = self.criterion(logits.reshape(-1, logits.shape[-1]), seq_out.reshape(-1))
             loss.backward()
             losses += loss.item()
+            score = torch.mean(self.calculate_reward(torch.max(logits, dim=-1)[1], self._vocab.decode_batch(seq))).item()
+            scores += score
             if ((i + 1) % accumulate_num == 0) or (i + 1 == batch_num):
                 optimizer.step()
                 optimizer.zero_grad()
                 # update learning rate
                 lr_schedule.step()
-                progress_bar.update(ceil((i + 1) / accumulate_num),
-                                    [("loss", loss.item()), ("lr", optimizer.param_groups[0]['lr'])])
+                progress_bar.update(ceil((i + 1) / accumulate_num), [("loss", loss.item()), 
+                                    ("lr", optimizer.param_groups[0]['lr']), ("score", score)])
                 if (i + 1) % (50 * accumulate_num) == 0:
-                    self.write_loss(self.now_epoch * nbatches + ceil((i + 1) / accumulate_num), loss.item())
-        self.logger.info(f"- Training: - loss: {losses / len(train_loader)} - lr: {optimizer.param_groups[0]['lr']}")
+                    self.write_train(self.now_epoch * nbatches + ceil((i + 1) / accumulate_num), 
+                                    {"loss": loss.item(), "score": score})
+        self.logger.info("- Training: {}".format(progress_bar.info))
 
         # evaluation
         scores = self.evaluate(val_set)
         self.write_eval(scores)
-        score = scores["score"]
+        score = scores["Score"]
 
         return score
 
@@ -134,13 +138,25 @@ class Img2InchiModel(BaseModel):
                 seq_out = seq[:, 1:]
                 loss = self.criterion(logits.reshape(-1, logits.shape[-1]), seq_out.reshape(-1))
                 losses += loss.item()
+                
                 score = torch.mean(self.calculate_reward(torch.max(logits, dim=-1)[1], self._vocab.decode_batch(seq))).item()
                 scores += score
                 progress_bar.update(i + 1, [("loss", loss.item()), ("score", score)])
 
+            predict_scores = 0
+            num_predicted = 0
+            for i, (img, seq) in enumerate(test_loader):
+                predict_score = torch.mean(self.calculate_reward(self.predict(img=img, mode='greedy'), 
+                                        self._vocab.decode_batch(seq))).item()
+                predict_scores += predict_score
+                num_predicted += img.shape[0]
+                if num_predicted >= 1000:
+                    break
+
         self.logger.info("- Evaluating: {}".format(progress_bar.info))
 
-        return {"Evaluate Loss": losses / len(test_loader), "score": scores / len(test_loader)}
+        return {"Loss": losses / len(test_loader), "Score": scores / len(test_loader), 
+                "Predict_score": predict_scores / num_predicted}
 
     def _run_scst(self, train_set, val_set):
         """Performs an epoch of Self-Critical Sequence Training

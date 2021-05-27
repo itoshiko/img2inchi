@@ -156,8 +156,9 @@ class BaseModel(object):
         self._config.save(self._config_export_path)
         self.logger.info("- Saved model in {}".format(self._model_dir))
 
-    def write_loss(self, step: int, loss: float):
-        self.writer.add_scalar(tag="loss", scalar_value=loss, global_step=step)
+    def write_train(self, step: int, result: dict):
+        for key in result:
+            self.writer.add_scalar(tag='train_' + str(key), scalar_value=result[key], global_step=step)
 
     def write_eval(self, result: dict):
         for key in result:
@@ -201,7 +202,7 @@ class BaseModel(object):
             # save weights if we have new best score on eval
             if best_score is None or score >= best_score:  # abs(score-0.5) <= abs(best_score-0.5):
                 best_score = score
-                self.logger.info("- New best score ({:04.2f})!".format(best_score))
+                self.logger.info("- New best score ({:04.5f})!".format(best_score))
                 self.save()
 
             # logging
@@ -221,7 +222,7 @@ class BaseModel(object):
         """
         self.logger.info("- Evaluating...")
         evaluate_loss = self._run_evaluate_epoch(test_set)  # evaluate
-        msg = " || ".join([" {} is {:04.2f} ".format(k, v) for k, v in evaluate_loss.items()])
+        msg = " || ".join([" {} is {:04.5f} ".format(k, v) for k, v in evaluate_loss.items()])
         self.logger.info("- Eval: {}".format(msg))
 
         return evaluate_loss
