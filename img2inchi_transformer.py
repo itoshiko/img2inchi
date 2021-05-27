@@ -1,7 +1,6 @@
 import torch
 
 from img2inchi import Img2InchiModel
-from base import BaseModel
 from model.Transformer import Img2SeqTransformer
 from pkg.utils.utils import join, num_param
 
