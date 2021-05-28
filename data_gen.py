@@ -30,7 +30,7 @@ class Img2SeqDataset(Dataset):
         img_batch, seq_batch = list(zip(*data_batch))
         img_batch = stack(img_batch)
         img_batch = img_batch * ones([1, 3, 1, 1])
-        seq_batch = pad_sequence(seq_batch, padding_value=self.vocab.PAD_ID).transpose(0, 1).contiguous()
+        seq_batch = pad_sequence(seq_batch, batch_first=True, padding_value=self.vocab.PAD_ID)
         return img_batch, seq_batch.long()
 
     def generate_batch_lstm(self, data_batch):
@@ -39,7 +39,7 @@ class Img2SeqDataset(Dataset):
         """
         data_batch.sort(key=(lambda data: len(data[1])), reverse=True)
         img_batch, seq_batch = list(zip(*data_batch))
-        seq_batch = pad_sequence(seq_batch, padding_value=self.vocab.PAD_ID).transpose(0, 1).contiguous()
+        seq_batch = pad_sequence(seq_batch, batch_first=True, padding_value=self.vocab.PAD_ID)
         return stack(img_batch), seq_batch.long()
 
 
