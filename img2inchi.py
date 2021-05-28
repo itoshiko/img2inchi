@@ -146,7 +146,7 @@ class Img2InchiModel(BaseModel):
             predict_scores = 0
             num_predicted = 0
             for i, (img, seq) in enumerate(test_loader):
-                predict_score = torch.mean(self.calculate_reward(self.predict(img=img, mode='greedy'), 
+                predict_score = torch.sum(self.calculate_reward(self.predict(img=img, mode='greedy'), 
                                         self._vocab.decode_batch(seq))).item()
                 predict_scores += predict_score
                 num_predicted += img.shape[0]
