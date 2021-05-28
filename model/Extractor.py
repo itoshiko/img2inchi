@@ -21,6 +21,7 @@ def get_resnet(name: str='resnet34', pretrain: str=''):
     if pretrain != '' and pretrain != 'none':
         if os.path.exists(pretrain):
             extractor.load_state_dict(torch.load(pretrain))
+            print(f"Loaded pretrained file {pretrain} .")
         else:
             print(f"The pretrained file {pretrain} does not exist. Use the default one.")
     return extractor, ft_size   # delete the last avgpool layer and fc layer.

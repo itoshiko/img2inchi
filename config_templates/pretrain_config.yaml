@@ -1,8 +1,8 @@
 transformer:
   feature_size_1:
   feature_size_2:
-  extractor_name: 'resnet101'
-  pretrain: './model weights/pretrain_resnet101/pretrained_resnet101.pth'
+  extractor_name: 'resnet34'
+  pretrain: ''
   tr_extractor: TRUE
   num_encoder_layers: 1
   num_decoder_layers: 3
@@ -15,14 +15,14 @@ max_seq_len: 300
 warmup_steps: 2000
 lr_init: 1
 lr_min: 0.0001
-batch_size: 100
+batch_size: 30
 lr_method: 'adam'
 lr_scheduler: 'AwesomeScheduler'
 device: 'cuda:0'
 multi_gpu: True
 criterion_method: 'CrossEntropyLoss'
-n_epochs: 50
+n_epochs: 30
 SCST_predict_mode: 'greedy'
 SCST_lr: 0.000005
-gradient_accumulate_num: 1
+gradient_accumulate_num: 4
 beam_width: 5
