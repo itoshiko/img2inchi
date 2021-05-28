@@ -146,4 +146,4 @@ export_config.yaml
 *.pdf
 
 # config
-/config/
+config/

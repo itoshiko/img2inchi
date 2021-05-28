@@ -1,0 +1,18 @@
+origin_dir: 'data/origin'
+prcd_dir: 'data/prcd_data_small'
+train_labels: 'train_labels.csv'
+val_set_labels: 'small_val_set_labels.csv'
+train_set_labels: 'small_train_set_labels.csv'
+val_size: 20000
+train_size: 80000
+build_vocab: FALSE
+split_data_set: True
+prc_img: True
+img_width: 512
+img_height: 256
+# The threshold of thresholding, use Otsu if-1
+threshold: 0
+num_workers: 12
+chunk_size: 400
+thresholding: FALSE
+phology: TRUE
