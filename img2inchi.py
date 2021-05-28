@@ -1,4 +1,5 @@
 
+from typing import Iterable, Union
 from base import BaseModel
 from data_gen import get_dataLoader
 from pkg.utils.BeamSearchLSTM import BeamSearchLSTM
@@ -62,8 +63,9 @@ class Img2InchiModel(BaseModel):
             raise NotImplementedError("Unknown model name")
         return beam_search
 
-    def prepare_data(self, batch_size, data_set):
-        train_loader = get_dataLoader(data_set, batch_size=batch_size, model_name=self.model_name)
+    def prepare_data(self, batch_size, data_set, shuffle=True):
+        train_loader = get_dataLoader(data_set, batch_size=batch_size, shuffle=shuffle, 
+                                        num_workers=self._config.dataloader_num_workers, model_name=self.model_name)
         return train_loader
         
     def scst(self, train_set, val_set):
@@ -106,7 +108,7 @@ class Img2InchiModel(BaseModel):
                 progress_bar.update(ceil((i + 1) / accumulate_num), [("loss", loss.item()), 
                                     ("lr", optimizer.param_groups[0]['lr'])])
                 if (i + 1) % (50 * accumulate_num) == 0:
-                    score = torch.mean(self.calculate_reward(torch.max(logits, dim=-1)[1], self._vocab.decode_batch(seq))).item()
+                    score = torch.mean(self.calculate_reward(torch.max(logits, dim=-1)[1], seq)).item()
                     self.write_train(self.now_epoch * nbatches + ceil((i + 1) / accumulate_num), 
                                     {"loss": loss.item(), "score": score})
         self.logger.info("- Training: {}".format(progress_bar.info))
@@ -122,9 +124,9 @@ class Img2InchiModel(BaseModel):
         self.model.eval()
         losses = 0
         scores = 0
-        batch_size = self._config.batch_size
+        batch_size = self._config.eval_batch_size
         device = self.device
-        test_loader = self.prepare_data(batch_size, test_set)
+        test_loader = self.prepare_data(batch_size, test_set, False)
         nbatches = len(test_loader)
         progress_bar = ProgressBar(nbatches)
         with torch.no_grad():
@@ -137,7 +139,7 @@ class Img2InchiModel(BaseModel):
                 loss = self.criterion(logits.reshape(-1, logits.shape[-1]), seq_out.reshape(-1))
                 losses += loss.item()
                 
-                score = torch.mean(self.calculate_reward(torch.max(logits, dim=-1)[1], self._vocab.decode_batch(seq))).item()
+                score = torch.mean(self.calculate_reward(torch.max(logits, dim=-1)[1], seq_out)).item()
                 scores += score
                 progress_bar.update(i + 1, [("loss", loss.item()), ("score", score)])
 
@@ -145,7 +147,7 @@ class Img2InchiModel(BaseModel):
             num_predicted = 0
             for i, (img, seq) in enumerate(test_loader):
                 predict_score = torch.sum(self.calculate_reward(self.predict(img=img, mode='greedy'), 
-                                        self._vocab.decode_batch(seq))).item()
+                                        self._vocab.decode(seq))).item()
                 predict_scores += predict_score
                 num_predicted += img.shape[0]
                 if num_predicted >= 1000:
@@ -186,7 +188,7 @@ class Img2InchiModel(BaseModel):
                 seq_out = seq[:, 1:]
                 logits, sampled_seq = self.sample(img=img, gts=seq_out, forcing_num=0)
                 loss = criterion(logits.transpose(1, 2).contiguous(), seq_out)
-                gts = [self._vocab.decode(seq[i, :]) for i in range(batch_size)]
+                gts = self._vocab.decode(seq)
                 more_sample = self.sample_decode(img, num_samples=10)
                 sampled_reward = self.calculate_reward(sampled_seq, gts)
                 baseline = torch.stack([self.calculate_reward(sample, gts) for sample in more_sample])
@@ -209,7 +211,7 @@ class Img2InchiModel(BaseModel):
 
         return score
 
-    def predict(self, img: Tensor, mode: str = "greedy") -> 'list[Tensor]':
+    def predict(self, img: Tensor, mode: str = "greedy") -> 'Tensor':
         img = img.to(self.device)
         if self.multi_gpu:
             model = self.model.module
@@ -223,7 +225,7 @@ class Img2InchiModel(BaseModel):
                 result = flatten_list(result)
             elif mode == "greedy":
                 result = self.beam_search.greedy_decode(encode_memory=encodings)
-        return result
+        return torch.stack(result)
 
     def sample(self, img: Tensor, gts: Tensor, forcing_num: int):
         img = img.to(self.device)
@@ -246,7 +248,7 @@ class Img2InchiModel(BaseModel):
             result = self.beam_search.sample_decode(encode_memory=encodings)
         return split_list(result, batch_size)
 
-    def calculate_reward(self, seq: 'list[Tensor]', gt: 'list[str]'):
+    def calculate_reward(self, seq: Tensor, gt: Iterable[str]):
         """
                 Calculate Levenshtein distance of sample sequence and predict sequence
                 Args:
@@ -255,9 +257,11 @@ class Img2InchiModel(BaseModel):
                 Returns:
                     reward: (dict) reward["sample"], reward["predict"]
                 """
+        if isinstance(gt, Tensor):
+            gt = self._vocab.decode(gt)
         with torch.no_grad():
             batch_size = len(gt)
-            seq = self._vocab.decode_batch(seq)
+            seq = self._vocab.decode(seq)
             sample_reward = torch.zeros(batch_size, device=self.device)
             for i in range(batch_size):
                 sample_reward[i] = 1 - (Levenshtein.distance(seq[i], gt[i]) / len(gt[i]))

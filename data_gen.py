@@ -1,11 +1,9 @@
 import pandas as pd
-import torch
-from torch import Tensor
+from torch import Tensor, stack, ones
 from torch.nn.utils.rnn import pad_sequence
 from torch.utils.data import DataLoader, Dataset
 from torchvision.transforms import ToTensor
 from pkg.utils.utils import read_img, join
-from pkg.utils.vocab import vocab
 
 
 class Img2SeqDataset(Dataset):
@@ -30,8 +28,8 @@ class Img2SeqDataset(Dataset):
 
     def generate_batch_transformer(self, data_batch):
         img_batch, seq_batch = list(zip(*data_batch))
-        img_batch = torch.stack(img_batch)
-        img_batch = img_batch * torch.ones([1, 3, 1, 1])
+        img_batch = stack(img_batch)
+        img_batch = img_batch * ones([1, 3, 1, 1])
         seq_batch = pad_sequence(seq_batch, padding_value=self.vocab.PAD_ID).transpose(0, 1).contiguous()
         return img_batch, seq_batch.long()
 
@@ -42,15 +40,15 @@ class Img2SeqDataset(Dataset):
         data_batch.sort(key=(lambda data: len(data[1])), reverse=True)
         img_batch, seq_batch = list(zip(*data_batch))
         seq_batch = pad_sequence(seq_batch, padding_value=self.vocab.PAD_ID).transpose(0, 1).contiguous()
-        return torch.stack(img_batch), seq_batch.long()
+        return stack(img_batch), seq_batch.long()
 
 
-def get_dataLoader(dataset: Img2SeqDataset, batch_size: int = 4, model_name='transformer'):
+def get_dataLoader(dataset: Img2SeqDataset, batch_size: int = 4, shuffle=True, num_workers=2, model_name='transformer'):
     if model_name == 'transformer':
         return DataLoader(dataset, batch_size=batch_size,
-                          shuffle=True, collate_fn=dataset.generate_batch_transformer)
+                          shuffle=shuffle, collate_fn=dataset.generate_batch_transformer, num_workers=num_workers)
     elif model_name == 'lstm':
         return DataLoader(dataset, batch_size=batch_size,
-                          shuffle=True, collate_fn=dataset.generate_batch_lstm)
+                          shuffle=shuffle, collate_fn=dataset.generate_batch_lstm, num_workers=num_workers)
     else:
         raise Exception('Unknown mode')
