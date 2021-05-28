@@ -144,3 +144,6 @@ dmypy.json
 export_config.yaml
 *.gv
 *.pdf
+
+# config
+/config/
