@@ -12,7 +12,7 @@ from pkg.utils.vocab import vocab as vocabulary
 from predict import pre_process
 
 
-def predict_all(model, vocab, path, batch_size):
+def predict_all(model: Img2InchiModel, vocab: vocabulary, path: str, batch_size: int):
     """predict all for commit
     """
     img_list = []
@@ -35,7 +35,7 @@ def predict_all(model, vocab, path, batch_size):
     seq = []
     for arr in split_array:
         img_list = torch.from_numpy(arr).float()
-        seq = seq + vocab.decode_batch(model.predict(img_list, mode="beam"))
+        seq = seq + vocab.decode(model.predict(img_list, mode="beam"))
     return seq, img_name_list
 
 
