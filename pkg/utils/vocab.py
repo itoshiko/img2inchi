@@ -1,5 +1,7 @@
 import pickle
+from typing import Union
 import numpy as np
+from torch import Tensor
 from pkg.utils.utils import join, create_dirs
 
 
@@ -73,9 +75,11 @@ class vocab():
         self.vocab_dir = vocab_dir
         self.vocab_to_int, self.int_to_vocab = self.get_vocab()
         self.size = len(self.vocab_to_int)
-        self.PAD_ID = self.__call__(PAD)
-        self.SOS_ID = self.__call__(SOS)
-        self.EOS_ID = self.__call__(EOS)
+        self.vocab_arr = np.array([self.int_to_vocab[key] for key in self.int_to_vocab])
+        self.PAD_ID = self.vocab_to_int[PAD]
+        self.SOS_ID = self.vocab_to_int[SOS]
+        self.EOS_ID = self.vocab_to_int[EOS]
+        self.vocab_arr[self.PAD_ID] = ''
 
     def encode(self, inchi: str, no_mole_fml: bool=False):
         '''
@@ -117,7 +121,9 @@ class vocab():
     def encode_all(self, data):
         return data['InChI'].apply(self.encode)
 
-    def decode(self, seq):
+    '''
+    def decode(self, seq: Union[np.ndarray, Tensor]):
+        
         if len(seq.shape) == 2:
             if seq.shape[1] > 1:
                 raise Exception("Too many input sequences")
@@ -135,10 +141,26 @@ class vocab():
                 break
             else:
                 inchi += self.int_to_vocab[int(token)]
+        
         return inchi
-    
-    def decode_batch(self, seqs):
-        return [self.decode(seq) for seq in seqs]
+    '''
+
+    def decode(self, seqs: Union[np.ndarray, Tensor]) -> np.ndarray:
+        if isinstance(seqs, Tensor):
+            seqs: np.ndarray = seqs.cpu().numpy()
+        if seqs.ndim == 1:
+            batch_size = 1
+        else:
+            batch_size = seqs.shape[0]
+            seqs = seqs.reshape(batch_size, -1)
+        seqs = seqs.astype(np.int)
+        seqs[seqs == self.SOS_ID] = self.PAD_ID
+        mask = np.cumsum(seqs == self.EOS_ID, axis=-1) > 0
+        seqs[mask] = self.PAD_ID
+        seqs = np.reshape(self.vocab_arr[np.reshape(seqs, -1)], (batch_size, -1))
+        result = np.apply_along_axis(lambda a: "".join(a), -1, seqs)
+        result = np.char.add("InChI=1S/", result)
+        return result
 
     def get_vocab(self):
         root = self.root

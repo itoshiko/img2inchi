@@ -6,3 +6,4 @@ path_val_root: './'
 path_val_data_dir: 'data/prcd_data/'
 path_val_img_dir: 'validate'
 val_annotations_file: 'val_set_labels.csv'
+dataloader_num_workers: 2
