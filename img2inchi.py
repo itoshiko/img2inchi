@@ -80,7 +80,6 @@ class Img2InchiModel(BaseModel):
                 """
         # logging
         losses = 0
-        scores = 0
         model.train()
         batch_size = self._config.batch_size
         device = self.device
@@ -99,16 +98,15 @@ class Img2InchiModel(BaseModel):
             loss = self.criterion(logits.reshape(-1, logits.shape[-1]), seq_out.reshape(-1))
             loss.backward()
             losses += loss.item()
-            score = torch.mean(self.calculate_reward(torch.max(logits, dim=-1)[1], self._vocab.decode_batch(seq))).item()
-            scores += score
             if ((i + 1) % accumulate_num == 0) or (i + 1 == batch_num):
                 optimizer.step()
                 optimizer.zero_grad()
                 # update learning rate
                 lr_schedule.step()
                 progress_bar.update(ceil((i + 1) / accumulate_num), [("loss", loss.item()), 
-                                    ("lr", optimizer.param_groups[0]['lr']), ("score", score)])
+                                    ("lr", optimizer.param_groups[0]['lr'])])
                 if (i + 1) % (50 * accumulate_num) == 0:
+                    score = torch.mean(self.calculate_reward(torch.max(logits, dim=-1)[1], self._vocab.decode_batch(seq))).item()
                     self.write_train(self.now_epoch * nbatches + ceil((i + 1) / accumulate_num), 
                                     {"loss": loss.item(), "score": score})
         self.logger.info("- Training: {}".format(progress_bar.info))
