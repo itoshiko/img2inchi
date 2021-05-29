@@ -21,7 +21,7 @@ from pkg.utils.vocab import vocab as vocabulary
               help='Path to model yaml config')
 @click.option('--scst', default=False,
               help='Use SCST training method')
-@click.option('--output', default="./model weights",
+@click.option('--output', default="./model_weights",
               help='Path to save trained model')
 def main(model_name, instance, data, vocab, model, scst, output):
     # Load configs
