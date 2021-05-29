@@ -30,9 +30,10 @@ class Img2InchiModel(BaseModel):
         self._init_scheduler(config.lr_scheduler)
         self._init_criterion(config.criterion_method)
         self._init_beamSearch(config)
+        self._init_writer()
+        #self.write_graph()
         if self.multi_gpu:
             self._init_multi_gpu()
-        self._init_writer()
         self.logger.info("- Config: ")
         self._config.show(fun=self.logger.info)
 

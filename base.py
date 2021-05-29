@@ -36,9 +36,10 @@ class BaseModel(object):
         self._init_optimizer(config.lr_method, config.lr_init)
         self._init_scheduler(config.lr_scheduler)
         self._init_criterion(config.criterion_method)
+        self._init_writer()
+        self.write_graph()
         if self.multi_gpu:
             self._init_multi_gpu()
-        self._init_writer()
         self.logger.info("- Config: ")
         self._config.show(fun=self.logger.info)
 
@@ -93,6 +94,7 @@ class BaseModel(object):
 
     def _init_writer(self):
         self.writer = SummaryWriter(log_dir=self.write_path)
+        self.vis_graph = SummaryWriter(log_dir=self.write_path)
 
     # ! MUST OVERWRITE
     def getModel(self):
@@ -164,6 +166,9 @@ class BaseModel(object):
         for key in result:
             self.writer.add_scalar(tag='eval_' + str(key), scalar_value=result[key], global_step=self.now_epoch)
 
+    def write_graph(self):
+        raise NotImplementedError("Need implement to add graph to tensorboard")
+    
     # 4. train and evaluate
     def train(self, train_set, val_set):
         """Global training procedure

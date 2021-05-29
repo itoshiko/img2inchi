@@ -25,7 +25,7 @@ device = 'cuda:0' if torch.cuda.is_available() else 'cpu'
 device_ids = range(torch.cuda.device_count())
 multi_gpu = True if len(device_ids) > 1 else False
 
-pretrained_ResNet101_path = "model weights/ResNet101.pth"
+pretrained_ResNet101_path = "model_weights/ResNet101.pth"
 _vocab = vocab(root, vocab_dir)
 
 loss_fn = torch.nn.CrossEntropyLoss(ignore_index=PAD_ID)

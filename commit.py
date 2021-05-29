@@ -65,7 +65,7 @@ def write_csv(seq_list, name_list, file_path):
 
 
 @click.command()
-@click.option('--model_path', default="./model weights/test_save",
+@click.option('--model_path', default="./model_weights/test_save",
               help='Path to trained model')
 @click.option('--data_path', default="./images",
               help='Path to data to process')

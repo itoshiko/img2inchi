@@ -1,8 +1,10 @@
+import tensorboardX
 import torch
 
 from img2inchi import Img2InchiModel
 from model.Transformer import Img2SeqTransformer
 from pkg.utils.utils import join, num_param
+from tensorboardX import SummaryWriter
 
 PAD_ID = 0
 SOS_ID = 1
@@ -87,3 +89,9 @@ class Img2InchiTransformerModel(Img2InchiModel):
         torch.save(checking_point, self._model_path)
         self._config.save(self._config_export_path)
         self.logger.info("- Saved model in {}".format(self._model_dir))
+
+    def write_graph(self):
+        rand_img = torch.rand((1, 3, 256, 512), device=self.device)
+        rand_seq = torch.randint(0, self.vocab_size, (1, 200), device=self.device)
+        self.vis_graph.add_graph(self.model, (rand_img, rand_seq))
+        self.vis_graph.close()
