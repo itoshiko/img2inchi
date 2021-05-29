@@ -7,6 +7,7 @@ from pkg.utils.BeamSearchTransformer import BeamSearchTransformer
 from math import ceil
 
 import torch
+from torch.nn.utils.rnn import pad_sequence
 import Levenshtein
 from torch import Tensor
 
@@ -225,7 +226,7 @@ class Img2InchiModel(BaseModel):
                 result = flatten_list(result)
             elif mode == "greedy":
                 result = self.beam_search.greedy_decode(encode_memory=encodings)
-        return torch.stack(result)
+        return pad_sequence(result, batch_first=True, padding_value=self._vocab.PAD_ID)
 
     def sample(self, img: Tensor, gts: Tensor, forcing_num: int):
         img = img.to(self.device)
