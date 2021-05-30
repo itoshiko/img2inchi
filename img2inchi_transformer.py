@@ -1,10 +1,8 @@
-import tensorboardX
 import torch
-
+from torch import Tensor
 from img2inchi import Img2InchiModel
 from model.Transformer import Img2SeqTransformer
 from pkg.utils.utils import join, num_param
-from tensorboardX import SummaryWriter
 
 PAD_ID = 0
 SOS_ID = 1
@@ -95,3 +93,25 @@ class Img2InchiTransformerModel(Img2InchiModel):
         rand_seq = torch.randint(0, self.vocab_size, (1, 200), device=self.device)
         self.vis_graph.add_graph(self.model, (rand_img, rand_seq))
         self.vis_graph.close()
+
+    def get_attention(self, img: Tensor, seqs: Tensor) -> Tensor:
+        '''
+        Give the images and predicted sequences, return the corresponding attention matrixes.
+        :param img: images. Shape of (batch_size, channels_num, H, W)
+        :param seqs: predicted sequences. Shape of (batch_size, max_lenth)
+        :return attention: corresponding attention matrixes. 
+        Shape of (batch_size, decoder_layer_num, nhead, max_lenth, feature_h, feature_w)
+        '''
+        model = self.model
+        model.eval()
+        model.display()
+        with torch.no_grad():
+            img = img.to(self.device)
+            seqs = seqs.to(self.device)
+            ft_size = [0, 0]
+            encode_memory = model.encode(img, ft_size)
+            model.decode(seqs[:-1], encode_memory)
+            attn = torch.stack(model.get_attention(), dim=1)
+            batch_size, decoder_layer_num, nhead, max_len, _ = attn.shape
+            attn = attn.reshape(batch_size, decoder_layer_num, nhead, max_len, ft_size[0], ft_size[1])
+        return attn

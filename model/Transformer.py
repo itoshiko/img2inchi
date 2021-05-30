@@ -139,6 +139,11 @@ class DecoderLayer(nn.Module):
                     memory, memory
                 )[1:]
 
+    def display(self, displaying):
+        self.src_attn.display(displaying)
+    
+    def get_attention(self) -> Tensor:
+        return self.src_attn.get_attention()
 
 class TransformerEncoder(nn.Module):
     """TransformerEncoder is a stack of N encoder layers
@@ -237,6 +242,13 @@ class TransformerDecoder(nn.Module):
         ]
         return decode_mem_list
 
+    def display(self, displaying):
+        for mod in self.layers:
+            mod.display(displaying)
+
+    def get_attention(self) -> 'list[Tensor]':
+        return [mod.get_attention() for mod in self.layers]
+
     def clear_cache(self):
         for i in range(self.num_layers):
             self.layers[i].clear_cache()
@@ -275,16 +287,19 @@ class Img2SeqTransformer(nn.Module):
             for param in self.transformer_encoder.parameters():
                 param.requires_grad = True
 
-    def encode(self, img: Tensor):
+    def encode(self, img: Tensor, ft_size: 'Optional[list[int, int]]'=None) -> Tensor:
         '''
         batch_size = img.shape[0]
         '''
         features = self.features_extractor(img)
-        batch_size,  _, _, n_feature = features.shape
+        batch_size,  ft_h, ft_w, n_feature = features.shape
+        if ft_size is not None:
+            ft_size[0] = ft_h
+            ft_size[1] = ft_w
         features = features.view(batch_size, -1, n_feature)
         return self.transformer_encoder(src=features, src_mask=None, src_key_padding_mask=None)
 
-    def decode(self, seq: Tensor, memory: Tensor):
+    def decode(self, seq: Tensor, memory: Tensor) -> Tensor:
         seq_emb = self.positional_encoding_seq(self.seq_emb(seq))
         tgt_mask = self.generate_square_subsequent_mask(seq.shape[1], seq.device)
         tgt_padding_mask = seq == PAD_ID
@@ -318,6 +333,12 @@ class Img2SeqTransformer(nn.Module):
 
     def clear_cache(self):
         self.transformer_decoder.clear_cache()
+
+    def display(self, displaying=True):
+        self.transformer_decoder.display()
+
+    def get_attention(self):
+        return self.transformer_decoder.get_attention()
 
     def generate_square_subsequent_mask(self, size: int, device: str):
         mask = 1.0 - torch.triu(torch.ones((size, size), device=device), 1)
