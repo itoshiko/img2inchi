@@ -214,13 +214,17 @@ class Img2InchiModel(BaseModel):
         return score
 
     def predict(self, img: Tensor, mode: str = "greedy") -> 'Tensor':
-        img = img.to(self.device)
+        '''
+        Warning: This method will set the model to evaluate mode.
+        '''
         if self.multi_gpu:
             model = self.model.module
         else:
             model = self.model
+        model.eval()
         result = None
         with torch.no_grad():
+            img = img.to(self.device)
             encodings = model.encode(img)
             if mode == "beam":
                 result = self.beam_search.beam_decode(encode_memory=encodings)
@@ -268,3 +272,13 @@ class Img2InchiModel(BaseModel):
             for i in range(batch_size):
                 sample_reward[i] = 1 - (Levenshtein.distance(seq[i], gt[i]) / len(gt[i]))
         return sample_reward
+    
+    def get_attention(self, img: Tensor, seqs: Tensor) -> Tensor:
+        '''
+        Give the images and predicted sequences, return the corresponding attention matrixes.
+        :param img: images. Shape of (batch_size, channels_num, H, W)
+        :param seqs: predicted sequences. Shape of (batch_size, max_lenth)
+        :return attention: corresponding attention matrixes. 
+        Shape of (batch_size, attention_num, max_lenth, feature_h, feature_w)
+        '''
+        raise NotImplementedError('get_attention should be implemented by subclass')

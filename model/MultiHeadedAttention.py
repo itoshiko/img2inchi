@@ -29,10 +29,10 @@ def attention(query: Tensor, key: Tensor, value: Tensor, pos_mask: Optional[Tens
             scores = scores.masked_fill(padding_mask, float('-inf'))
         else:
             scores = scores.masked_fill(padding_mask == 0, float('-inf'))
-    p_attn = F.softmax(scores, dim = -1)
+    p_attn: Tensor = F.softmax(scores, dim = -1)
     if dropout is not None:
         p_attn = dropout(p_attn)
-    return torch.matmul(p_attn, value)
+    return torch.matmul(p_attn, value), p_attn
 
 
 class MultiHeadedAttention(nn.Module):
@@ -49,6 +49,8 @@ class MultiHeadedAttention(nn.Module):
         self.h = nhead
         self.dropout = nn.Dropout(dropout)
         self.linear = nn.Linear(d_model, d_model)
+        self.displaying = False
+        self.attn = None
         
     def forward(self, query: Tensor, key: Tensor, value: Tensor, 
                 pos_mask: Optional[Tensor]=None, padding_mask: Optional[Tensor]=None):
@@ -68,12 +70,24 @@ class MultiHeadedAttention(nn.Module):
         ]
 
         # 2) Apply attention on all the projected vectors in batch. 
-        x = attention(query, key, value, pos_mask=pos_mask, 
+        x, self.attn = attention(query, key, value, pos_mask=pos_mask, 
                         padding_mask=padding_mask, dropout=self.dropout)
+        if not self.displaying:
+            self.attn = None
 
         # 3) "Concat" using a view and apply a final linear. 
         x = x.transpose(1, 2).contiguous().view(nbatches, -1, self.h * self.d_k)
         return self.linear(x)
+
+    def display(self, displaying=True):
+        if not displaying:
+            self.attn = None
+        self.displaying = displaying
+    
+    def get_attention(self):
+        if not self.displaying:
+            raise Exception('Not display mode! Cannot get the attention matrix.')
+        return self.attn
 
 
 class multiLinear(nn.Module):

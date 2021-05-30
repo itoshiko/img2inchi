@@ -132,7 +132,7 @@ class BeamSearch(object):
             encode_memory = encode_memory.unsqueeze(0)
         batch_size = encode_memory.shape[0]
         inputs: list[int] = [SOS_ID for _ in range(batch_size)]
-        seqs: list[list[int]] = [[] for _ in range(batch_size)]
+        seqs: list[list[int]] = [[SOS_ID] for _ in range(batch_size)]
         finished = [False for _ in range(batch_size)]
 
         # Initialize decode_memory
@@ -171,7 +171,7 @@ class BeamSearch(object):
         batch_size = encode_memory.shape[0]
         N = gts.shape[1]
         inputs: list[int] = [SOS_ID for _ in range(batch_size)]
-        seqs: list[list[int]] = [[] for _ in range(batch_size)]
+        seqs: list[list[int]] = [[SOS_ID] for _ in range(batch_size)]
 
         # Initialize decode_memory
         # Start with the start of the sentence token for each seq
