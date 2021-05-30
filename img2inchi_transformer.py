@@ -58,8 +58,11 @@ class Img2InchiTransformerModel(Img2InchiModel):
         if lr_scheduler == "AwesomeScheduler":
             d_model = self._config.transformer["d_model"]
             warmup_steps = self._config.warmup_steps
-            lr_sc = lambda step: (d_model) ** (-0.5) * \
-                                 (min((step + 1) ** (-0.5), (step + 1) * (warmup_steps ** (-1.5))))
+            lr_max = self._config.lr_max
+            lr_sc = lambda step: min(
+                (d_model) ** (-0.5) * (min((step + 1) ** (-0.5), (step + 1) * (warmup_steps ** (-1.5)))), 
+                lr_max
+            )
             scheduler = torch.optim.lr_scheduler.LambdaLR(self.optimizer, lr_sc)
             # if resume, restore lr
             if self.is_resume:
@@ -114,4 +117,5 @@ class Img2InchiTransformerModel(Img2InchiModel):
             attn = torch.stack(model.get_attention(), dim=1)
             batch_size, decoder_layer_num, nhead, max_len, _ = attn.shape
             attn = attn.reshape(batch_size, decoder_layer_num, nhead, max_len, ft_size[0], ft_size[1])
+        model.display(displaying=False)
         return attn
