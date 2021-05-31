@@ -221,7 +221,7 @@ class Img2InchiModel(BaseModel):
             model = self.model.module
         else:
             model = self.model
-        model.eval()
+        #model.eval()
         result = None
         with torch.no_grad():
             img = img.to(self.device)
@@ -231,7 +231,9 @@ class Img2InchiModel(BaseModel):
                 result = flatten_list(result)
             elif mode == "greedy":
                 result = self.beam_search.greedy_decode(encode_memory=encodings)
-        return pad_sequence(result, batch_first=True, padding_value=self._vocab.PAD_ID)
+        result = pad_sequence(result, batch_first=True, padding_value=self._vocab.PAD_ID)
+        print(result.shape)
+        return result
 
     def sample(self, img: Tensor, gts: Tensor, forcing_num: int):
         img = img.to(self.device)
