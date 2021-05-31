@@ -158,7 +158,7 @@ class vocab():
         mask = np.cumsum(seqs == self.EOS_ID, axis=-1) > 0
         seqs[mask] = self.PAD_ID
         seqs = np.reshape(self.vocab_arr[np.reshape(seqs, -1)], (batch_size, -1))
-        result = np.apply_along_axis(lambda a: "".join(a), -1, seqs)
+        result = np.apply_along_axis(str_join, -1, seqs)
         result = np.char.add("InChI=1S/", result)
         return result
 
@@ -178,6 +178,8 @@ class vocab():
             return self.vocab_to_int[x]
         return None
 
+def str_join(arr: np.ndarray) -> np.ndarray:
+    return np.array("".join(arr), dtype='<U500')
 
 if __name__ == '__main__':
     root = "D:/Tsinghua/2021.2/Artificial_Intelligence/Final Project/img2inchi"

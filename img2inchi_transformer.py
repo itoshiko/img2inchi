@@ -33,11 +33,11 @@ class Img2InchiTransformerModel(Img2InchiModel):
         d_model = self._config.transformer["d_model"]
         nhead = self._config.transformer["nhead"]
         vocab_size = self.vocab_size
-        if self._config.transformer["dim_feedforward"]:
+        if self._config.transformer["dim_feedforward"] is not None:
             dim_feedforward = self._config.transformer["dim_feedforward"]
         else:
             dim_feedforward = 1024
-        if self._config.transformer["dropout"]:
+        if self._config.transformer["dropout"] is not None:
             dropout = self._config.transformer["dropout"]
         else:
             dropout = 0.1
