@@ -2,11 +2,32 @@ import tkinter
 import tkinter.messagebox
 from tkinter.filedialog import *
 from PIL import ImageTk, Image
+import os
+import cv2
+import torch
+import click
+import numpy as np
+
 import string
+from pkg.utils.vocab import vocab as vocabulary
+from pkg.utils.general import Config
+from predict import  pre_process,interactive_shell
+
+from img2inchi import Img2InchiModel
+from img2inchi_transformer import Img2InchiTransformerModel
+from pkg.preprocess.img_process import pad_resize
 
 class window:
     def __init__(self):
         self.win=tkinter.Tk()
+        self.img=None
+
+        model_config=os.getcwd()+ '/export_config.yaml'
+        config = Config(model_config)
+        self.my_vocab = vocabulary(root=config.path_train_root, vocab_dir=config.vocab_dir)
+        self.model=Img2InchiTransformerModel(config, output_dir='', vocab=self.my_vocab, need_output=False)
+        self.model.build_pred(os.getcwd()+ '/model.ckpt', config=config)
+
         self.win.title('img2inchi')
         self.win.geometry('800x600')
         self.imgdir=None
@@ -38,7 +59,15 @@ class window:
 
     def transform(self):
         ## TODO operate the predict function
-        tkinter.messagebox.showinfo("Hello","hi")
+        self.image = cv2.imread(self.imgdir, cv2.IMREAD_GRAYSCALE)
+        _config = Config('./config/data_prepare.yaml')
+        image = (self.image / self.image.max() * 255).astype(np.uint8)
+        image = cv2.threshold(image, _config.threshold, 255, cv2.THRESH_BINARY)
+        img = torch.from_numpy(self.image).float()
+        img = img.repeat(1, 3, 1, 1)
+        result = self.model.predict(img, mode="beam")
+        seq = self.my_vocab.decode(result[0])
+        self.text.insert("end",seq)
 
 Win=window()
 
