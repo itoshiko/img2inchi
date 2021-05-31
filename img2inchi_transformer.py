@@ -13,6 +13,10 @@ class Img2InchiTransformerModel(Img2InchiModel):
     def __init__(self, config, output_dir, vocab, need_output=True):
         super(Img2InchiTransformerModel, self).__init__(config, output_dir, vocab, need_output=need_output)
 
+    def build_pred(self, model_path, config):
+        self._config.transformer["pretrain"] = 'none'
+        return super().build_pred(model_path, config=config)
+
     def getModel(self):
         feature_size_1 = self._config.transformer["feature_size_1"]
         feature_size_2 = self._config.transformer["feature_size_2"]

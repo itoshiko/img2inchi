@@ -10,11 +10,13 @@ def get_resnet(name: str='resnet34', pretrain: str=''):
     if name == 'resnet34':
         net = models.resnet34(pretrained=False)
         ft_size = 512
-        net.load_state_dict(torch.load('./model_weights/ResNet34.pth'))
+        if pretrain == '':
+            net.load_state_dict(torch.load('./model_weights/ResNet34.pth'))
     elif name == 'resnet101':
         net = models.resnet101(pretrained=False)
         ft_size = 2048
-        net.load_state_dict(torch.load('./model_weights/ResNet101.pth'))
+        if pretrain == '':
+            net.load_state_dict(torch.load('./model_weights/ResNet101.pth'))
     else:
         raise NotImplementedError("Unkown extractor name")
     extractor = nn.Sequential(*list(net.children())[:-2])
