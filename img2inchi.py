@@ -232,7 +232,6 @@ class Img2InchiModel(BaseModel):
             elif mode == "greedy":
                 result = self.beam_search.greedy_decode(encode_memory=encodings)
         result = pad_sequence(result, batch_first=True, padding_value=self._vocab.PAD_ID)
-        print(result.shape)
         return result
 
     def sample(self, img: Tensor, gts: Tensor, forcing_num: int):
