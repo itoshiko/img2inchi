@@ -74,7 +74,7 @@ def interactive_shell(model, vocab):
                     img = np.tile(img, (3, 1, 1))
                     img_list.append(img)
             img_list = torch.Tensor(img_list).float()
-            result = vocab.decode(model.predict(img_list, mode="greedy"))
+            result = vocab.decode(model.predict(img_list, mode="beam"))
             for i in range(result.shape[0]):
                 print(result[i])
 

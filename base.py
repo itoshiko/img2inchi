@@ -13,7 +13,6 @@ class BaseModel(object):
     def __init__(self, config, output_dir, need_output=True):
         self._config = config
         self.device = torch.device(config.device if torch.cuda.is_available() else 'cpu')
-        self.multi_gpu = config.multi_gpu and torch.cuda.device_count() > 1
         if need_output:
             self._output_dir = output_dir
             self._init_relative_path(output_dir)
