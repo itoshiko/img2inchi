@@ -335,7 +335,7 @@ class Img2SeqTransformer(nn.Module):
         self.transformer_decoder.clear_cache()
 
     def display(self, displaying=True):
-        self.transformer_decoder.display()
+        self.transformer_decoder.display(displaying=displaying)
 
     def get_attention(self):
         return self.transformer_decoder.get_attention()

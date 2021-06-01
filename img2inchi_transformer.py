@@ -117,7 +117,7 @@ class Img2InchiTransformerModel(Img2InchiModel):
             seqs = seqs.to(self.device)
             ft_size = [0, 0]
             encode_memory = model.encode(img, ft_size)
-            model.decode(seqs[:-1], encode_memory)
+            model.decode(seqs[:, :-1], encode_memory)
             attn = torch.stack(model.get_attention(), dim=1)
             batch_size, decoder_layer_num, nhead, max_len, _ = attn.shape
             attn = attn.reshape(batch_size, decoder_layer_num, nhead, max_len, ft_size[0], ft_size[1])

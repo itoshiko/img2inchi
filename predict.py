@@ -1,5 +1,6 @@
 import os
 import cv2
+from numpy.core.fromnumeric import shape
 import torch
 import click
 import numpy as np
@@ -35,9 +36,31 @@ def interactive_shell(model, vocab):
         if (img_path[-3:] == "png" or img_path[-3:] == "jpg") and (os.path.isfile(img_path)):
             img = cv2.imread(img_path, cv2.IMREAD_GRAYSCALE)
             img = pre_process(img)
+            raw_img = img
             img = torch.from_numpy(img).float()
             img = img.repeat(1, 3, 1, 1)
             results = model.predict(img, mode="beam")
+            attn = model.get_attention(img, results)[0, 0].cpu().numpy()
+            nhead, lenth, h, w = attn.shape
+            assert nhead == 8
+            attn = np.reshape(np.transpose(attn, (1, 0, 2, 3)), newshape=(lenth, 4, 2, h, w))
+            attn = np.reshape(np.transpose(attn, (0, 1, 3, 2, 4)), newshape=(lenth, 4 * h, 2 * w))
+            imgh, imgw = raw_img.shape
+            imgh = int(imgh / 1.6)
+            imgw = int(imgw / 1.6)
+            raw_img = cv2.resize(raw_img, (imgw, imgh), interpolation=cv2.INTER_LANCZOS4)
+            print(raw_img.shape, h, w)
+            raw_img = np.reshape(np.transpose(np.tile(raw_img, reps=(4, 2, 1, 1)), (0, 2, 1, 3)), newshape=(4 * imgh, 2 * imgw))
+            attn = np.transpose(attn / np.max(attn, axis=0, keepdims=True), (1, 2, 0))
+            attn = cv2.resize(attn, (4 * imgh, 2 * imgw), interpolation=cv2.INTER_LANCZOS4)
+            cv2.namedWindow("Attention")
+            for i in range(lenth):
+                x = cv2.addWeighted(raw_img / 255, 0.5, attn[:, :, i], 0.5, 0, dtype=cv2.CV_32FC1)
+                #x = np.expand_dims(x, axis=-1)
+                print(vocab(int(results[0, i + 1].item())))
+                cv2.imshow("Attention", x)
+                cv2.waitKey(0)
+            cv2.destroyAllWindows()
             results = vocab.decode(results)
             for r in results:
                 print(r)
