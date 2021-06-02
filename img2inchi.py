@@ -282,3 +282,6 @@ class Img2InchiModel(BaseModel):
         Shape of (batch_size, attention_num, max_lenth, feature_h, feature_w)
         '''
         raise NotImplementedError('get_attention should be implemented by subclass')
+    
+    def display(self, img: Tensor, seqs: Tensor):
+        raise NotImplementedError('get_attention should be implemented by subclass')

@@ -42,7 +42,7 @@ class Img2InchiTransformerModel(Img2InchiModel):
         else:
             dropout = 0.1
         model = Img2SeqTransformer(feature_size, extractor_name, pretrain, max_seq_len, tr_extractor, num_encoder_layers,
-                                   num_decoder_layers, d_model, nhead, vocab_size, dim_feedforward, dropout)
+                                   num_decoder_layers, d_model, nhead, vocab_size, dim_feedforward, dropout, self.device)
         self.model = model
         print(f'The number of parameters: {num_param(model)}')
         return model
@@ -110,7 +110,6 @@ class Img2InchiTransformerModel(Img2InchiModel):
         Shape of (batch_size, decoder_layer_num, nhead, max_lenth, feature_h, feature_w)
         '''
         model = self.model
-        model.eval()
         model.display()
         with torch.no_grad():
             img = img.to(self.device)
@@ -123,3 +122,23 @@ class Img2InchiTransformerModel(Img2InchiModel):
             attn = attn.reshape(batch_size, decoder_layer_num, nhead, max_len, ft_size[0], ft_size[1])
         model.display(displaying=False)
         return attn
+    
+    def display(self, img: Tensor, seqs: Tensor):
+        model = self.model
+        model.eval()
+        model.display()
+        with torch.no_grad():
+            img = img.to(self.device)
+            seqs = seqs.to(self.device)
+            ft_size = [0, 0]
+            encode_memory = model.encode(img, ft_size)
+            logits = model.decode(seqs[:, :-1], encode_memory)
+            prob, _ = torch.max(torch.softmax(logits, dim=-1), dim=-1)
+            features = model.get_feature()
+            attn = torch.stack(model.get_attention(), dim=1)
+            batch_size, decoder_layer_num, nhead, max_len, _ = attn.shape
+            attn = attn.reshape(batch_size, decoder_layer_num, nhead, max_len, ft_size[0], ft_size[1])
+            encoder_output = model.get_encoder_output()
+            decoder_output = model.get_decoder_output()
+        model.display(displaying=False)
+        return features, encoder_output, decoder_output, attn, prob
