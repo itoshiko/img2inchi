@@ -182,10 +182,9 @@ class window:
         global target_image
         target_image = target_image.astype(np.uint8)
         now_attn = self.attn[:, :, self.i].astype(np.uint8)
-        now_attn = cv2.bitwise_not(now_attn)
         now_attn = cv2.applyColorMap(now_attn, cv2.COLORMAP_JET)
         now_attn[cv2.cvtColor(target_image, cv2.COLOR_GRAY2BGR) > 50] = 255
-        img = now_attn
+        img = cv2.cvtColor(now_attn, cv2.COLOR_BGR2RGB)
         img = Image.fromarray(img)
         img = img.resize((600, 600), Image.ANTIALIAS)
         photo = ImageTk.PhotoImage(img)
