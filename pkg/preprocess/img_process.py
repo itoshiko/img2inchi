@@ -18,10 +18,11 @@ def pad_resize(img, config):
     img = cv2.resize(img, (config["img_width"], config["img_height"]), interpolation=cv2.INTER_LANCZOS4)
     return img
 
+
 def preprocess(img: np.ndarray, config: dict):
     if config is None:
         config = {"img_height": 256, "img_width": 512, "threshold": 0, "phology": True}
-    
+
     # rotate counter clockwise to get horizontal images
     h, w = img.shape
     if h > w:
@@ -39,9 +40,9 @@ def preprocess(img: np.ndarray, config: dict):
         img = cv2.morphologyEx(img, cv2.MORPH_CLOSE,
                                cv2.getStructuringElement(cv2.MORPH_CROSS, (3, 3)))
     return img
-    
 
-def prc_img(img_id, source_root="train", target_root="prcd_data", config: Optional[dict]=None):
+
+def prc_img(img_id, source_root="train", target_root="prcd_data", config: Optional[dict] = None):
     img = read_img(root=source_root, img_id=img_id, mode='GRAY')
     img = preprocess(img, config)
     save_img(img=img, root=target_root, img_id=img_id)
