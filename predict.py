@@ -15,9 +15,9 @@ from pkg.utils.utils import create_dirs
 
 def pre_process(image):
     _config = Config('./config/data_prepare.yaml')
-    # print(f"Worker-{self.process_id}: start processing images.")
     assert (_config is not None), "Can't get config file!"
-    # rotate counter clockwise to get horizontal images
+    image[image > 100] = 255
+    image[image <= 100] = 0
     return preprocess(img=image, config=_config.__dict__)
 
 
@@ -42,9 +42,9 @@ def interactive_shell(model, vocab):
             img = img.repeat(1, 3, 1, 1)
             results = model.predict(img, mode="beam")
             ft, en_o, de_o, attn, prob = model.display(img, results)
-            #show_attention(attn[0, 0].cpu().numpy, raw_img)
+            show_attention(attn, raw_img)
             #show_encoder(en_o, *ft.shape[1:3])
-            print(prob[0])
+            #print(prob[0])
             results = vocab.decode(results)
             for r in results:
                 print(r)
@@ -62,7 +62,10 @@ def interactive_shell(model, vocab):
             for i in range(result.shape[0]):
                 print(result[i])
 
-def show_attention(attn: np.ndarray, raw_img: np.ndarray):
+def show_attention(attn: Tensor, raw_img: np.ndarray):
+    target_path = './display/attn/'
+    create_dirs('./', 'display', 'attn')
+    attn = attn[0, 2].cpu().numpy()
     nhead, lenth, h, w = attn.shape
     assert nhead == 8
     attn = np.reshape(np.transpose(attn, (1, 0, 2, 3)), newshape=(lenth, 4, 2, h, w))
@@ -72,11 +75,16 @@ def show_attention(attn: np.ndarray, raw_img: np.ndarray):
     imgw = int(imgw / 1.6)
     raw_img = cv2.resize(raw_img, (imgw, imgh), interpolation=cv2.INTER_LANCZOS4)
     raw_img = np.reshape(np.transpose(np.tile(raw_img, reps=(4, 2, 1, 1)), (0, 2, 1, 3)), newshape=(4 * imgh, 2 * imgw))
+    raw_img = np.tile(np.expand_dims(raw_img, axis=-1), (1, 1, 3))
     attn = np.transpose(attn / np.max(attn, axis=0, keepdims=True), (1, 2, 0))
     attn = cv2.resize(attn, (4 * imgh, 2 * imgw), interpolation=cv2.INTER_LANCZOS4) * 255
-    target_path = './display/attn/'
     for i in range(lenth):
-        img = cv2.addWeighted(raw_img, 0.5, attn[:, :, i], 0.5, 0, dtype=cv2.CV_32FC1)
+        img = attn[:, :, i]
+        img[img < 0] = 0
+        img[img > 255] = 255
+        img = img.astype(np.uint8)
+        img = cv2.applyColorMap(img, cv2.COLORMAP_JET)
+        img = cv2.addWeighted(raw_img, 0.5, img, 0.5, 0, dtype=cv2.CV_8UC1)
         cv2.imwrite(target_path + f'{i}.png', img, [int(cv2.IMWRITE_PNG_COMPRESSION), 9])
 
 def show_feature(features: np.ndarray):
