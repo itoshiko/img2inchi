@@ -161,7 +161,7 @@ class Img2InchiModel(BaseModel):
 
         self.logger.info("- Evaluating: {}".format(progress_bar.info))
 
-        return {"Loss": losses / len(test_loader), "Score": scores / len(test_loader), 
+        return {"Loss": losses / nbatches, "Score": scores / nbatches, 
                 "Predict_score": predict_scores / num_predicted}
 
     def _run_scst(self, train_set, val_set):
@@ -285,6 +285,6 @@ class Img2InchiModel(BaseModel):
         Shape of (batch_size, attention_num, max_lenth, feature_h, feature_w)
         '''
         raise NotImplementedError('get_attention should be implemented by subclass')
-        
+
     def display(self, img: Tensor, seqs: Tensor):
         raise NotImplementedError('get_attention should be implemented by subclass')
