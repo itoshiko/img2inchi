@@ -1,5 +1,6 @@
 import tkinter
 import tkinter.messagebox
+from time import sleep
 from tkinter.filedialog import *
 
 import cv2
@@ -33,16 +34,20 @@ def get_screen_size():
     return w, h
 
 
+root = None
 real_resolution = get_real_resolution()
 screen_size = get_screen_size()
 screen_scale_rate = round(real_resolution[0] / screen_size[0], 2)
 target_image = None
+screenshot_over = False
 
 
 class window:
     def __init__(self):
         self.win = tkinter.Tk()
         self.i = 0
+        global root
+        root = self.win
 
         model_config = os.getcwd() + '/model_weights/tfe3d6/export_config.yaml'
         config = Config(model_config)
@@ -59,12 +64,12 @@ class window:
         B1 = tkinter.Button(self.win, text="Import Image", font=('Arial', 12), command=lambda: self.importimg(),
                             width=15, height=1)
         B1.place(x=100, y=10)
-        B2 = tkinter.Button(self.win, text="Import Image", font=('Arial', 12), command=lambda: self.screenshot(),
+        B2 = tkinter.Button(self.win, text="Screenshot", font=('Arial', 12), command=lambda: self.screenshot(),
                             width=15, height=1)
         B2.place(x=250, y=10)
         B3 = tkinter.Button(self.win, text="Begin Transform", font=('Arial', 12), command=lambda: self.transform(),
                             width=15, height=1)
-        B3.place(x=600, y=10)
+        B3.place(x=700, y=10)
         B4 = tkinter.Button(self.win, text="next attention image", font=('Arial', 12), command=lambda: self.nextimg(),
                             width=15, height=1)
         B4.place(x=400, y=750)
@@ -77,11 +82,11 @@ class window:
     def importimg(self):
         global target_image
         img_dir = askopenfilenames()
-        if self.imglabel:
-            self.imglabel.destroy()
         target_image = cv2.imread(img_dir[0].replace('/', '\\'))
         target_image = cv2.cvtColor(target_image, cv2.COLOR_BGR2GRAY)
         if target_image is not None:
+            if self.imglabel:
+                self.imglabel.destroy()
             if target_image.shape != (512, 256):
                 self.text.insert("end", "The size of current image is " + str(target_image.shape) + "\n")
             photo = ImageTk.PhotoImage(image=Image.fromarray(target_image))
@@ -162,21 +167,35 @@ class window:
         if self.flag != 3:
             self.text.insert("end", "image needs to be transformed first!\n")
             return
-
         self.i += 1
-        target_path = './display/attn/'
-        img = cv2.addWeighted(self.img, 0.5, self.attn[:, :, self.i], 0.5, 0, dtype=cv2.CV_32FC1)
-        cv2.imwrite(target_path + f'{self.i}.png', img, [int(cv2.IMWRITE_PNG_COMPRESSION), 9])
-        Img = Image.open(target_path.replace('/', '\\') + f'{self.i}.png')
-        Img = Img.resize((600, 600), Image.ANTIALIAS)
-        photo = ImageTk.PhotoImage(Img)
+        global target_image
+        img = cv2.addWeighted(target_image, 0.5, self.attn[:, :, self.i], 0.5, 0, dtype=cv2.CV_32FC1)
+        img = Image.fromarray(img)
+        img = img.resize((600, 600), Image.ANTIALIAS)
+        photo = ImageTk.PhotoImage(img)
         self.imglabel = tkinter.Label(self.win, image=photo)
         self.imglabel.place(x=200, y=50)
         self.text.insert("end", "next attention\n")
         self.win.mainloop()
 
     def screenshot(self):
-        pass
+        self.win.state('icon')
+        global screenshot_over
+        screenshot_over = False
+        s = ScreenShot(self.win)
+        self.win.wait_window(s.win)
+        self.win.update()
+        self.win.state('normal')
+        global target_image
+        if target_image is not None:
+            if self.imglabel:
+                self.imglabel.destroy()
+            photo = ImageTk.PhotoImage(image=Image.fromarray(target_image))
+            self.imglabel = tkinter.Label(self.win, image=photo)
+            self.imglabel.place(x=250, y=50)
+            self.text.insert("end", "Take screenshot succeed!\n")
+            self.flag = 0
+            self.win.mainloop()
 
 
 class Box:
@@ -240,8 +259,8 @@ class SelectionArea:
 
 class ScreenShot:
 
-    def __init__(self, scaling_factor=2):
-        self.win = tkinter.Tk()
+    def __init__(self, root, scaling_factor=2):
+        self.win = tkinter.Toplevel(root)
         # self.win.tk.call('tk', 'scaling', scaling_factor)
         self.width = self.win.winfo_screenwidth()
         self.height = self.win.winfo_screenheight()
@@ -263,7 +282,7 @@ class ScreenShot:
                                      height=self.height)
         self.canvas.pack()
         self.area = SelectionArea(self.canvas)
-        self.win.mainloop()
+
 
     def exit(self, event):
         self.win.destroy()
@@ -286,7 +305,7 @@ class ScreenShot:
         img = self.captureImage()
         if img is not None:
             img = cv2.cvtColor(np.asarray(img), cv2.COLOR_RGB2GRAY)
-            global target_image
+            global target_image, screenshot_over
             target_image = img
         self.win.destroy()
 
@@ -305,4 +324,5 @@ class ScreenShot:
         self.is_selecting = False
 
 
-Win = window()
+if __name__ == "__main__":
+    win = window()
