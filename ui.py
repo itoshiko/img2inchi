@@ -158,7 +158,10 @@ class window:
                              newshape=(4 * imgh, 2 * imgw))
         target_image = raw_img
         attn = np.transpose(attn / np.max(attn, axis=0, keepdims=True), (1, 2, 0))
-        attn = cv2.resize(attn, (4 * imgh, 2 * imgw), interpolation=cv2.INTER_LANCZOS4) * 255
+        attn = cv2.resize(attn, (4 * imgh, 2 * imgw), interpolation=cv2.INTER_LANCZOS4)
+        attn = attn - np.min(attn)
+        attn = attn / np.max(attn)
+        attn = attn * 255.
 
         self.attn = attn
         self.flag = 3
@@ -167,9 +170,18 @@ class window:
         if self.flag != 3:
             self.text.insert("end", "image needs to be transformed first!\n")
             return
+        if self.imglabel:
+            self.imglabel.destroy()
         self.i += 1
         global target_image
-        img = cv2.addWeighted(target_image, 0.5, self.attn[:, :, self.i], 0.5, 0, dtype=cv2.CV_32FC1)
+        target_image = target_image.astype(np.uint8)
+        print(np.max(self.attn))
+        print(np.min(self.attn))
+        now_attn = self.attn[:, :, self.i].astype(np.uint8)
+        now_attn = cv2.bitwise_not(now_attn)
+        now_attn = cv2.applyColorMap(now_attn, cv2.COLORMAP_JET)
+        now_attn[cv2.cvtColor(target_image, cv2.COLOR_GRAY2BGR) > 50] = 255
+        img = now_attn
         img = Image.fromarray(img)
         img = img.resize((600, 600), Image.ANTIALIAS)
         photo = ImageTk.PhotoImage(img)
