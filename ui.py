@@ -60,6 +60,7 @@ class window:
         self.win.geometry('1000x1000')
         self.imglabel = None
         self.inchi = None
+        self.charLabel = None
         self.text = tkinter.Text(self.win, width=85, height=7)
         self.text.place(x=200, y=650)
         B1 = tkinter.Button(self.win, text="Import Image", font=('Arial', 12), command=lambda: self.importimg(),
@@ -88,6 +89,8 @@ class window:
         if target_image is not None:
             if self.imglabel:
                 self.imglabel.destroy()
+            if self.charLabel:
+                self.charLabel.destroy()
             if target_image.shape != (512, 256):
                 self.text.insert("end", "The size of current image is " + str(target_image.shape) + "\n")
             photo = ImageTk.PhotoImage(image=Image.fromarray(target_image))
@@ -141,6 +144,7 @@ class window:
         img = torch.from_numpy(target_image).float()
         img = img.repeat(1, 3, 1, 1)
         result = self.model.predict(img, mode="beam")
+        self.raw_result = result
         seq = self.my_vocab.decode(result[0])
         self.text.insert("end", seq)
         self.text.insert("end", "\n")
@@ -173,12 +177,13 @@ class window:
             return
         if self.imglabel:
             self.imglabel.destroy()
+        if self.charLabel:
+            self.charLabel.destroy()
         self.i += 1
         #global target_image
         target_image = self.target_image
         target_image = target_image.astype(np.uint8)
         now_attn = self.attn[:, :, self.i].astype(np.uint8)
-        #now_attn = cv2.bitwise_not(now_attn)
         now_attn = cv2.applyColorMap(now_attn, cv2.COLORMAP_JET)
         now_attn[cv2.cvtColor(target_image, cv2.COLOR_GRAY2BGR) > 50] = 255
         img = cv2.cvtColor(now_attn, cv2.COLOR_BGR2RGB)
@@ -187,7 +192,10 @@ class window:
         photo = ImageTk.PhotoImage(img)
         self.imglabel = tkinter.Label(self.win, image=photo)
         self.imglabel.place(x=200, y=50)
-        self.text.insert("end", "next attention\n")
+        now_attn_char = ''.join(self.my_vocab.decode(self.raw_result[0, self.i].cpu().numpy().reshape(1)))
+        self.charLabel = tkinter.Label(self.win,
+                                       text="Char:\n" + now_attn_char[9:len(now_attn_char)], font=("Arial", 30))
+        self.charLabel.place(x=830, y=500)
         self.win.mainloop()
 
     def screenshot(self):
@@ -202,6 +210,8 @@ class window:
         if target_image is not None:
             if self.imglabel:
                 self.imglabel.destroy()
+            if self.charLabel:
+                self.charLabel.destroy()
             photo = ImageTk.PhotoImage(image=Image.fromarray(target_image))
             self.imglabel = tkinter.Label(self.win, image=photo)
             self.imglabel.place(x=250, y=50)
