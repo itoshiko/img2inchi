@@ -3,6 +3,7 @@ import tkinter.messagebox
 from time import sleep
 from tkinter.filedialog import *
 
+import os
 import cv2
 import numpy as np
 import torch
@@ -38,7 +39,6 @@ root = None
 real_resolution = get_real_resolution()
 screen_size = get_screen_size()
 screen_scale_rate = round(real_resolution[0] / screen_size[0], 2)
-target_image = None
 screenshot_over = False
 
 
@@ -48,12 +48,13 @@ class window:
         self.i = 0
         global root
         root = self.win
+        self.target_image = None
 
-        model_config = os.getcwd() + '/model_weights/tfe3d6/export_config.yaml'
+        model_config = os.getcwd() + '/model_weights/e10d20_lr_0.1/export_config.yaml'
         config = Config(model_config)
         self.my_vocab = vocabulary(root=config.path_train_root, vocab_dir=config.vocab_dir)
         self.model = Img2InchiTransformerModel(config, output_dir='', vocab=self.my_vocab, need_output=False)
-        self.model.build_pred(os.getcwd() + '/model_weights/tfe3d6/model.ckpt', config=config)
+        self.model.build_pred(os.getcwd() + '/model_weights/e10d20_lr_0.1/model.ckpt', config=config)
 
         self.win.title('img2inchi')
         self.win.geometry('1000x1000')
@@ -80,10 +81,10 @@ class window:
         self.win.mainloop()
 
     def importimg(self):
-        global target_image
         img_dir = askopenfilenames()
         target_image = cv2.imread(img_dir[0].replace('/', '\\'))
         target_image = cv2.cvtColor(target_image, cv2.COLOR_BGR2GRAY)
+        self.target_image = target_image
         if target_image is not None:
             if self.imglabel:
                 self.imglabel.destroy()
@@ -97,7 +98,7 @@ class window:
             self.win.mainloop()
 
     def imgprocess(self):
-        global target_image
+        target_image = self.target_image
         if target_image is None:
             self.text.insert("end", "No image imported!\n")
             return
@@ -123,6 +124,7 @@ class window:
         target_image = cv2.bitwise_not(target_image)
         target_image = cv2.morphologyEx(target_image, cv2.MORPH_CLOSE,
                                cv2.getStructuringElement(cv2.MORPH_CROSS, (3, 3)))
+        self.target_image = target_image
         photo = ImageTk.PhotoImage(image=Image.fromarray(target_image))
         self.imglabel = tkinter.Label(self.win, image=photo)
         self.imglabel.place(x=250, y=50)
@@ -135,7 +137,7 @@ class window:
             self.text.insert("end", "image needs to be processed first!\n")
             return
         self.flag = 2
-        global target_image
+        target_image = self.target_image
         img = torch.from_numpy(target_image).float()
         img = img.repeat(1, 3, 1, 1)
         result = self.model.predict(img, mode="beam")
@@ -156,12 +158,11 @@ class window:
         raw_img = cv2.resize(raw_img, (imgw, imgh), interpolation=cv2.INTER_LANCZOS4)
         raw_img = np.reshape(np.transpose(np.tile(raw_img, reps=(4, 2, 1, 1)), (0, 2, 1, 3)),
                              newshape=(4 * imgh, 2 * imgw))
-        target_image = raw_img
+        self.target_image = raw_img
         attn = np.transpose(attn / np.max(attn, axis=0, keepdims=True), (1, 2, 0))
-        attn = cv2.resize(attn, (4 * imgh, 2 * imgw), interpolation=cv2.INTER_LANCZOS4)
-        attn = attn - np.min(attn)
-        attn = attn / np.max(attn)
-        attn = attn * 255.
+        attn = cv2.resize(attn, (4 * imgh, 2 * imgw), interpolation=cv2.INTER_LANCZOS4) * 150
+        attn[attn < 0] = 0
+        attn[attn > 255] = 255
 
         self.attn = attn
         self.flag = 3
@@ -173,15 +174,14 @@ class window:
         if self.imglabel:
             self.imglabel.destroy()
         self.i += 1
-        global target_image
+        #global target_image
+        target_image = self.target_image
         target_image = target_image.astype(np.uint8)
-        print(np.max(self.attn))
-        print(np.min(self.attn))
         now_attn = self.attn[:, :, self.i].astype(np.uint8)
-        now_attn = cv2.bitwise_not(now_attn)
+        #now_attn = cv2.bitwise_not(now_attn)
         now_attn = cv2.applyColorMap(now_attn, cv2.COLORMAP_JET)
         now_attn[cv2.cvtColor(target_image, cv2.COLOR_GRAY2BGR) > 50] = 255
-        img = now_attn
+        img = cv2.cvtColor(now_attn, cv2.COLOR_BGR2RGB)
         img = Image.fromarray(img)
         img = img.resize((600, 600), Image.ANTIALIAS)
         photo = ImageTk.PhotoImage(img)
