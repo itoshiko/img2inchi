@@ -25,6 +25,7 @@ class Img2InchiModel(BaseModel):
 
     def build_train(self, config=None):
         self.logger.info("- Building model...")
+        self.multi_gpu = config.multi_gpu and torch.cuda.device_count() > 1
         self._init_model(config.model_name)
         self._init_optimizer(config.lr_method, config.lr_init)
         self._init_scheduler(config.lr_scheduler)
@@ -43,6 +44,7 @@ class Img2InchiModel(BaseModel):
         self.logger.info("- Building model...")
         self.logger.info("   - " + config.model_name)
         self.logger.info("   - " + str(self.device))
+        self.multi_gpu = False
         self.model = self.getModel()
         self.model = self.model.to(self.device)
         model_from_disk = torch.load(model_path, map_location=self.device)
@@ -221,17 +223,14 @@ class Img2InchiModel(BaseModel):
             model = self.model.module
         else:
             model = self.model
-        #model.eval()
         result = None
         with torch.no_grad():
             img = img.to(self.device)
             encodings = model.encode(img)
             if mode == "beam":
                 result = self.beam_search.beam_decode(encode_memory=encodings)
-                result = flatten_list(result)
             elif mode == "greedy":
                 result = self.beam_search.greedy_decode(encode_memory=encodings)
-        result = pad_sequence(result, batch_first=True, padding_value=self._vocab.PAD_ID)
         return result
 
     def sample(self, img: Tensor, gts: Tensor, forcing_num: int):
@@ -282,4 +281,7 @@ class Img2InchiModel(BaseModel):
         :return attention: corresponding attention matrixes. 
         Shape of (batch_size, attention_num, max_lenth, feature_h, feature_w)
         '''
+        raise NotImplementedError('get_attention should be implemented by subclass')
+    
+    def display(self, img: Tensor, seqs: Tensor):
         raise NotImplementedError('get_attention should be implemented by subclass')

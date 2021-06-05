@@ -161,6 +161,8 @@ class TransformerEncoder(nn.Module):
         self.layers = clones(encoder_layer, num_layers)
         self.num_layers = num_layers
         self.norm = norm
+        self.displaying = False
+        self.encoder_output = None
 
     def forward(self, src: Tensor, src_mask: Optional[Tensor] = None, src_key_padding_mask: Optional[Tensor] = None) -> Tensor:
         """Pass the input through the encoder layers in turn.
@@ -174,13 +176,28 @@ class TransformerEncoder(nn.Module):
             see the docs in Transformer class.
         """
         output = src
+        if self.displaying:
+            self.encoder_output = []
         for mod in self.layers:
             output = mod(output, src_mask=src_mask, src_padding_mask=src_key_padding_mask)
+            if self.displaying:
+                self.encoder_output.append(output)
 
         if self.norm is not None:
             output = self.norm(output)
 
         return output
+    
+    def get_encoder_output(self):
+        if self.displaying:
+            return self.encoder_output
+        else:
+            raise Exception('Not display mode! Cannot get the encoder outputs.')
+
+    def display(self, displaying):
+        self.displaying = displaying
+        if not displaying:
+            self.encoder_output = None
 
 
 class TransformerDecoder(nn.Module):
@@ -199,6 +216,8 @@ class TransformerDecoder(nn.Module):
         self.layers = clones(decoder_layer, num_layers)
         self.num_layers = num_layers
         self.norm = norm
+        self.displaying = False
+        self.decoder_output = []
 
     def forward(self, tgt: Tensor, memory: Tensor, 
                 tgt_mask: Optional[Tensor] = None, memory_mask: Optional[Tensor] = None, 
@@ -218,6 +237,8 @@ class TransformerDecoder(nn.Module):
             see the docs in Transformer class.
         """
         output = tgt
+        if self.displaying:
+            self.decoder_output = []
         for i in range(self.num_layers):
             mod = self.layers[i]
             decode_mem = decode_mem_list[i] if decode_mem_list is not None else None
@@ -227,6 +248,8 @@ class TransformerDecoder(nn.Module):
                 memory_mask=memory_mask, memory_padding_mask=memory_key_padding_mask,
                 decode_mem=decode_mem
             )
+            if self.displaying:
+                self.decoder_output.append(output)
             if decode_mem_list is not None:
                 decode_mem_list[i] = mod.self_attn_memory + mod.src_attn_memory
         
@@ -243,12 +266,21 @@ class TransformerDecoder(nn.Module):
         return decode_mem_list
 
     def display(self, displaying):
+        self.displaying = displaying
+        if not displaying:
+            self.decoder_output = None
         for mod in self.layers:
             mod.display(displaying)
 
     def get_attention(self) -> 'list[Tensor]':
         return [mod.get_attention() for mod in self.layers]
 
+    def get_decoder_output(self):
+        if self.displaying:
+            return self.decoder_output
+        else:
+            raise Exception('Not display mode! Cannot get the decoder outputs.')
+    
     def clear_cache(self):
         for i in range(self.num_layers):
             self.layers[i].clear_cache()
@@ -258,9 +290,9 @@ class Img2SeqTransformer(nn.Module):
     def __init__(self, feature_size: 'tuple[int, int]', extractor_name: str, pretrain: str,
                 max_seq_len: int, tr_extractor: bool, num_encoder_layers: int, 
                 num_decoder_layers: int, d_model: int, nhead: int, vocab_size: int,
-                dim_feedforward: int = 1024, dropout: float = 0.1):
+                dim_feedforward: int = 1024, dropout: float = 0.1, device: str='cpu'):
         super(Img2SeqTransformer, self).__init__()
-        self.device = 'cuda:0' if torch.cuda.is_available() else 'cpu'
+        self.device = device
         self.d_model = d_model
         self.features_extractor = FeaturesExtractor(num_features=d_model, output_size=feature_size, 
                                                 extractor_name=extractor_name, pretrain=pretrain, tr_extractor=tr_extractor)
@@ -274,6 +306,9 @@ class Img2SeqTransformer(nn.Module):
         self.generator = Linear(d_model, vocab_size)
         self.seq_emb = TokenEmbedding(vocab_size, d_model)
         self.positional_encoding_seq = PositionalEncodingNd(d_pos=1, max_size=max_seq_len, d_model=d_model, dropout=dropout)
+
+        self.displaying = False
+        self.feature = None
 
     def forward(self, img: Tensor, seq: Tensor):
         memory = self.encode(img)
@@ -292,6 +327,8 @@ class Img2SeqTransformer(nn.Module):
         batch_size = img.shape[0]
         '''
         features = self.features_extractor(img)
+        if self.displaying:
+            self.feature = features
         batch_size,  ft_h, ft_w, n_feature = features.shape
         if ft_size is not None:
             ft_size[0] = ft_h
@@ -335,10 +372,26 @@ class Img2SeqTransformer(nn.Module):
         self.transformer_decoder.clear_cache()
 
     def display(self, displaying=True):
-        self.transformer_decoder.display()
+        self.displaying = displaying
+        if not displaying:
+            self.feature = None
+        self.transformer_encoder.display(displaying=displaying)
+        self.transformer_decoder.display(displaying=displaying)
 
     def get_attention(self):
         return self.transformer_decoder.get_attention()
+
+    def get_feature(self):
+        if self.displaying:
+            return self.feature
+        else:
+            raise NotImplementedError("Not display mode! Cannot get the features.")
+
+    def get_encoder_output(self):
+        return self.transformer_encoder.get_encoder_output()
+
+    def get_decoder_output(self):
+        return self.transformer_decoder.get_decoder_output()
 
     def generate_square_subsequent_mask(self, size: int, device: str):
         mask = 1.0 - torch.triu(torch.ones((size, size), device=device), 1)
