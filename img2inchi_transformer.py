@@ -75,7 +75,7 @@ class Img2InchiTransformerModel(Img2InchiModel):
         else:
             return super().getLearningRateScheduler(lr_scheduler)
 
-    def save(self):
+    def save(self, temp=False):
         """Saves model"""
         self.logger.info("- Saving model...")
         # save state as a dict
@@ -84,6 +84,7 @@ class Img2InchiTransformerModel(Img2InchiModel):
         else:
             model = self.model
         optimizer = self.optimizer
+        path = self._model_path if not temp else self._model_path + '.tmp'
         checking_point = {"net": model.state_dict(),
                           "optimizer": optimizer.state_dict(),
                           "epoch": self.now_epoch,
@@ -91,7 +92,7 @@ class Img2InchiTransformerModel(Img2InchiModel):
         if self._config.transformer["tr_extractor"]:
             torch.save(model.features_extractor.extractor.state_dict(), join(self._model_dir, 'pretrained_' + 
                         self._config.transformer['extractor_name'] + '.pth'))
-        torch.save(checking_point, self._model_path)
+        torch.save(checking_point, path)
         self._config.save(self._config_export_path)
         self.logger.info("- Saved model in {}".format(self._model_dir))
 

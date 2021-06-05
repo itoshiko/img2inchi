@@ -89,7 +89,7 @@ class BaseModel(object):
     def _init_multi_gpu(self):
         device_ids = range(torch.cuda.device_count())
         self.model = torch.nn.DataParallel(self.model, device_ids = device_ids)
-        self.logger.info("  - multi-gpu: cuda:", *device_ids)
+        self.logger.info("  - multi-gpu: cuda:" + str(device_ids))
 
     def _init_writer(self):
         self.writer = SummaryWriter(log_dir=self.write_path)
@@ -140,7 +140,7 @@ class BaseModel(object):
         self.old_model = torch.load(self._model_path, map_location)
         self.model.load_state_dict(self.old_model["net"])
 
-    def save(self):
+    def save(self, temp=False):
         """Saves model"""
         self.logger.info("- Saving model...")
         # save state as a dict
@@ -149,11 +149,12 @@ class BaseModel(object):
         else:
             model = self.model
         optimizer = self.optimizer
+        path = self._model_path if not temp else self._model_path + '.tmp'
         checking_point = {"net": model.state_dict(),
                           "optimizer": optimizer.state_dict(),
                           "epoch": self.now_epoch,
                           "scheduler": self.scheduler.state_dict()}
-        torch.save(checking_point, self._model_path)
+        torch.save(checking_point, path)
         self._config.save(self._config_export_path)
         self.logger.info("- Saved model in {}".format(self._model_dir))
 
@@ -202,6 +203,7 @@ class BaseModel(object):
             # epoch
             score = self._run_train_epoch(model, optimizer, train_set, val_set, self.scheduler)
             self.now_epoch += 1
+            self.save(temp=True)
 
             # save weights if we have new best score on eval
             if best_score is None or score >= best_score:  # abs(score-0.5) <= abs(best_score-0.5):

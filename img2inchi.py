@@ -146,9 +146,11 @@ class Img2InchiModel(BaseModel):
                 score = torch.mean(self.calculate_reward(torch.max(logits, dim=-1)[1], seq_out)).item()
                 scores += score
                 progress_bar.update(i + 1, [("loss", loss.item()), ("score", score)])
-
+            del loss
             predict_scores = 0
             num_predicted = 0
+            batch_size = self._config.batch_size * 3
+            test_loader = self.prepare_data(batch_size, test_set, False)
             for i, (img, seq) in enumerate(test_loader):
                 predict_score = torch.sum(self.calculate_reward(self.predict(img=img, mode='greedy'), 
                                         self._vocab.decode(seq))).item()
@@ -223,6 +225,7 @@ class Img2InchiModel(BaseModel):
             model = self.model.module
         else:
             model = self.model
+        #model.eval()
         result = None
         with torch.no_grad():
             img = img.to(self.device)
@@ -282,6 +285,6 @@ class Img2InchiModel(BaseModel):
         Shape of (batch_size, attention_num, max_lenth, feature_h, feature_w)
         '''
         raise NotImplementedError('get_attention should be implemented by subclass')
-    
+        
     def display(self, img: Tensor, seqs: Tensor):
         raise NotImplementedError('get_attention should be implemented by subclass')
