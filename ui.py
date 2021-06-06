@@ -68,7 +68,7 @@ class Window:
         self.charLabel = None
         self.charsLabel = None
         self.model_info_label = None
-        self.temp_result = ''
+        self.temp_result = tkinter.StringVar(value='')
         self.charsLabel = tkinter.Label(self.win, textvariable=self.temp_result, font=("Arial", 20))
         self.charsLabel.place(x=200, y=620)
         self.text = tkinter.Text(self.win, width=85, height=7)
@@ -130,7 +130,7 @@ class Window:
         target_image = cv2.cvtColor(target_image, cv2.COLOR_BGR2GRAY)
         self.target_image = target_image
         if target_image is not None:
-            self.temp_result = ''
+            self.temp_result.set('')
             if self.imglabel:
                 self.imglabel.destroy()
             if self.charLabel:
@@ -242,10 +242,13 @@ class Window:
         self.charLabel = tkinter.Label(self.win,
                                        text="Char:\n" + now_attn_char[9:len(now_attn_char)], font=("Arial", 30))
         self.charLabel.place(x=830, y=500)
-        if self.temp_result == '':
-            self.temp_result = now_attn_char
+        if self.temp_result.get() == '':
+            self.temp_result.set(now_attn_char)
         else:
-            self.temp_result = self.temp_result + now_attn_char[9:len(now_attn_char)]
+            temp_text = self.temp_result.get() + now_attn_char[9:len(now_attn_char)]
+            if len(temp_text) > 45:
+                temp_text = "..." + temp_text[len(temp_text)-42:]
+            self.temp_result.set(temp_text)
         self.win.mainloop()
 
     def screenshot(self):
@@ -259,7 +262,7 @@ class Window:
                 self.imglabel.destroy()
             if self.charLabel:
                 self.charLabel.destroy()
-            self.temp_result = ''
+            self.temp_result.set('')
             photo = ImageTk.PhotoImage(image=Image.fromarray(auto_fit(self.target_image)))
             self.imglabel = tkinter.Label(self.win, image=photo)
             self.imglabel.place(x=250, y=50)
