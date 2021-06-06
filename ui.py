@@ -1,6 +1,5 @@
 import tkinter
 import tkinter.messagebox
-from time import sleep
 from tkinter.filedialog import *
 
 import os
@@ -42,7 +41,17 @@ screen_scale_rate = round(real_resolution[0] / screen_size[0], 2)
 screenshot_over = False
 
 
-class window:
+def auto_fit(image):
+    h, w = image.shape
+    if h > w:
+        new_w = int(float(w) / float(h) * 500)
+        return cv2.resize(image, (500, new_w))
+    else:
+        new_h = int(float(h) / float(w) * 500)
+        return cv2.resize(image, (new_h, 500))
+
+
+class Window:
     def __init__(self):
         self.win = tkinter.Tk()
         self.i = 0
@@ -58,26 +67,28 @@ class window:
 
         self.win.title('img2inchi')
         self.win.geometry('1000x1000')
+        self.win.maxsize(1000, 1000)
+        self.win.minsize(1000, 1000)
         self.imglabel = None
         self.inchi = None
         self.charLabel = None
         self.text = tkinter.Text(self.win, width=85, height=7)
         self.text.place(x=200, y=650)
-        B1 = tkinter.Button(self.win, text="Import Image", font=('Arial', 12), command=lambda: self.importimg(),
+        b1 = tkinter.Button(self.win, text="Import Image", font=('Arial', 12), command=lambda: self.importimg(),
                             width=15, height=1)
-        B1.place(x=100, y=10)
-        B2 = tkinter.Button(self.win, text="Screenshot", font=('Arial', 12), command=lambda: self.screenshot(),
+        b1.place(x=10, y=50)
+        b2 = tkinter.Button(self.win, text="Screenshot", font=('Arial', 12), command=lambda: self.screenshot(),
                             width=15, height=1)
-        B2.place(x=250, y=10)
-        B3 = tkinter.Button(self.win, text="Begin Transform", font=('Arial', 12), command=lambda: self.transform(),
+        b2.place(x=10, y=130)
+        b3 = tkinter.Button(self.win, text="Begin Transform", font=('Arial', 12), command=lambda: self.transform(),
                             width=15, height=1)
-        B3.place(x=700, y=10)
-        B4 = tkinter.Button(self.win, text="next attention image", font=('Arial', 12), command=lambda: self.nextimg(),
+        b3.place(x=10, y=380)
+        b4 = tkinter.Button(self.win, text="next attention image", font=('Arial', 12), command=lambda: self.nextimg(),
                             width=15, height=1)
-        B4.place(x=400, y=750)
-        B5 = tkinter.Button(self.win, text="image preprocess", font=('Arial', 12), command=lambda: self.imgprocess(),
+        b4.place(x=400, y=750)
+        b5 = tkinter.Button(self.win, text="image preprocess", font=('Arial', 12), command=lambda: self.imgprocess(),
                             width=15, height=1)
-        B5.place(x=550, y=10)
+        b5.place(x=10, y=300)
 
         self.win.mainloop()
 
@@ -93,16 +104,16 @@ class window:
                 self.charLabel.destroy()
             if target_image.shape != (512, 256):
                 self.text.insert("end", "The size of current image is " + str(target_image.shape) + "\n")
-            photo = ImageTk.PhotoImage(image=Image.fromarray(target_image))
+            photo = ImageTk.PhotoImage(image=Image.fromarray(auto_fit(target_image)))
             self.imglabel = tkinter.Label(self.win, image=photo)
-            self.imglabel.place(x=250, y=50)
+            self.imglabel.place(x=250, y=10)
             self.text.insert("end", "Import image succeed!\n")
             self.flag = 0
             self.win.mainloop()
 
     def imgprocess(self):
-        target_image = self.target_image
-        if target_image is None:
+        target_img = self.target_image
+        if target_img is None:
             self.text.insert("end", "No image imported!\n")
             return
         if self.flag == 2:
@@ -110,10 +121,10 @@ class window:
             return
         if self.imglabel:
             self.imglabel.destroy()
-        h, w = target_image.shape
+        h, w = target_img.shape
         if h > w:
-            target_image = np.rot90(target_image)
-            h, w = target_image.shape
+            target_img = np.rot90(target_img)
+            h, w = target_img.shape
         pad_h, pad_v = 0, 0
         hw_ratio = (h / w) - (256 / 512)
         if hw_ratio < 0:
@@ -121,16 +132,16 @@ class window:
         else:
             wh_ratio = (w / h) - (512 / 256)
             pad_v = int(abs(wh_ratio) * h // 2)
-        target_image = np.pad(target_image, [(pad_h, pad_h), (pad_v, pad_v)], mode='constant', constant_values=255)
-        target_image = cv2.resize(target_image, (512, 256), interpolation=cv2.INTER_LANCZOS4)
-        target_image = (target_image / target_image.max() * 255).astype(np.uint8)
-        target_image = cv2.bitwise_not(target_image)
-        target_image = cv2.morphologyEx(target_image, cv2.MORPH_CLOSE,
-                               cv2.getStructuringElement(cv2.MORPH_CROSS, (3, 3)))
-        self.target_image = target_image
-        photo = ImageTk.PhotoImage(image=Image.fromarray(target_image))
+        target_img = np.pad(target_img, [(pad_h, pad_h), (pad_v, pad_v)], mode='constant', constant_values=255)
+        target_img = cv2.resize(target_img, (512, 256), interpolation=cv2.INTER_LANCZOS4)
+        target_img = (target_img / target_img.max() * 255).astype(np.uint8)
+        target_img = cv2.bitwise_not(target_img)
+        target_img = cv2.morphologyEx(target_img, cv2.MORPH_CLOSE,
+                                      cv2.getStructuringElement(cv2.MORPH_CROSS, (3, 3)))
+        self.target_image = target_img
+        photo = ImageTk.PhotoImage(image=Image.fromarray(target_img))
         self.imglabel = tkinter.Label(self.win, image=photo)
-        self.imglabel.place(x=250, y=50)
+        self.imglabel.place(x=250, y=10)
         self.text.insert("end", "process image succeed!\n")
         self.flag = 1
         self.win.mainloop()
@@ -140,8 +151,8 @@ class window:
             self.text.insert("end", "image needs to be processed first!\n")
             return
         self.flag = 2
-        target_image = self.target_image
-        img = torch.from_numpy(target_image).float()
+        target_img = self.target_image
+        img = torch.from_numpy(target_img).float()
         img = img.repeat(1, 3, 1, 1)
         result = self.model.predict(img, mode="beam")
         self.raw_result = result
@@ -152,7 +163,7 @@ class window:
         attn = attn.cpu().numpy()
         attn = attn[0, 0]
         nhead, self.lenth, h, w = attn.shape
-        raw_img = target_image
+        raw_img = target_img
         assert nhead == 8
         attn = np.reshape(np.transpose(attn, (1, 0, 2, 3)), newshape=(self.lenth, 4, 2, h, w))
         attn = np.reshape(np.transpose(attn, (0, 1, 3, 2, 4)), newshape=(self.lenth, 4 * h, 2 * w))
@@ -180,18 +191,18 @@ class window:
         if self.charLabel:
             self.charLabel.destroy()
         self.i += 1
-        #global target_image
-        target_image = self.target_image
-        target_image = target_image.astype(np.uint8)
+        # global target_image
+        target_img = self.target_image
+        target_img = target_img.astype(np.uint8)
         now_attn = self.attn[:, :, self.i].astype(np.uint8)
         now_attn = cv2.applyColorMap(now_attn, cv2.COLORMAP_JET)
-        now_attn[cv2.cvtColor(target_image, cv2.COLOR_GRAY2BGR) > 50] = 255
+        now_attn[cv2.cvtColor(target_img, cv2.COLOR_GRAY2BGR) > 50] = 255
         img = cv2.cvtColor(now_attn, cv2.COLOR_BGR2RGB)
         img = Image.fromarray(img)
         img = img.resize((600, 600), Image.ANTIALIAS)
         photo = ImageTk.PhotoImage(img)
         self.imglabel = tkinter.Label(self.win, image=photo)
-        self.imglabel.place(x=200, y=50)
+        self.imglabel.place(x=200, y=10)
         now_attn_char = ''.join(self.my_vocab.decode(self.raw_result[0, self.i].cpu().numpy().reshape(1)))
         self.charLabel = tkinter.Label(self.win,
                                        text="Char:\n" + now_attn_char[9:len(now_attn_char)], font=("Arial", 30))
@@ -212,7 +223,7 @@ class window:
                 self.imglabel.destroy()
             if self.charLabel:
                 self.charLabel.destroy()
-            photo = ImageTk.PhotoImage(image=Image.fromarray(target_image))
+            photo = ImageTk.PhotoImage(image=Image.fromarray(auto_fit(target_image)))
             self.imglabel = tkinter.Label(self.win, image=photo)
             self.imglabel.place(x=250, y=50)
             self.text.insert("end", "Take screenshot succeed!\n")
@@ -228,14 +239,14 @@ class Box:
         self.end_x = None
         self.end_y = None
 
-    def isNone(self):
+    def is_none(self):
         return self.start_x is None or self.end_x is None
 
-    def setStart(self, x, y):
+    def set_start(self, x, y):
         self.start_x = x
         self.start_y = y
 
-    def setEnd(self, x, y):
+    def set_end(self, x, y):
         self.end_x = x
         self.end_y = y
 
@@ -259,17 +270,17 @@ class SelectionArea:
         self.area_box = Box()
 
     def empty(self):
-        return self.area_box.isNone()
+        return self.area_box.is_none()
 
-    def setStartPoint(self, x, y):
+    def set_start_point(self, x, y):
         self.canvas.delete('area', 'lt_txt', 'rb_txt')
-        self.area_box.setStart(x, y)
+        self.area_box.set_start(x, y)
         # 开始坐标文字
         self.canvas.create_text(
             x, y - 10, text=f'({x}, {y})', fill='red', tag='lt_txt')
 
-    def updateEndPoint(self, x, y):
-        self.area_box.setEnd(x, y)
+    def update_end_point(self, x, y):
+        self.area_box.set_end(x, y)
         self.canvas.delete('area', 'rb_txt')
         box_area = self.area_box.box()
         # 选择区域
@@ -280,9 +291,9 @@ class SelectionArea:
 
 
 class ScreenShot:
-
-    def __init__(self, root, scaling_factor=2):
-        self.win = tkinter.Toplevel(root)
+    def __init__(self, parent, scaling_factor=2):
+        self.scaling_factor = scaling_factor
+        self.win = tkinter.Toplevel(parent)
         # self.win.tk.call('tk', 'scaling', scaling_factor)
         self.width = self.win.winfo_screenwidth()
         self.height = self.win.winfo_screenheight()
@@ -295,16 +306,15 @@ class ScreenShot:
 
         # 绑定按 Enter 确认, Esc 退出
         self.win.bind('<KeyPress-Escape>', self.exit)
-        self.win.bind('<KeyPress-Return>', self.confirmScreenShot)
-        self.win.bind('<Button-1>', self.selectStart)
-        self.win.bind('<ButtonRelease-1>', self.selectDone)
-        self.win.bind('<Motion>', self.changeSelectionArea)
+        self.win.bind('<KeyPress-Return>', self.confirm_screenshot)
+        self.win.bind('<Button-1>', self.select_start)
+        self.win.bind('<ButtonRelease-1>', self.select_done)
+        self.win.bind('<Motion>', self.change_selection_area)
 
         self.canvas = tkinter.Canvas(self.win, width=self.width,
                                      height=self.height)
         self.canvas.pack()
         self.area = SelectionArea(self.canvas)
-
 
     def exit(self, event):
         self.win.destroy()
@@ -313,7 +323,7 @@ class ScreenShot:
         self.canvas.delete('area', 'lt_txt', 'rb_txt')
         self.win.attributes('-alpha', 0)
 
-    def captureImage(self):
+    def capture_image(self):
         if self.area.empty():
             return None
         else:
@@ -323,28 +333,28 @@ class ScreenShot:
             img = ImageGrab.grab(box_area)
             return img
 
-    def confirmScreenShot(self, event):
-        img = self.captureImage()
+    def confirm_screenshot(self, event):
+        img = self.capture_image()
         if img is not None:
             img = cv2.cvtColor(np.asarray(img), cv2.COLOR_RGB2GRAY)
             global target_image, screenshot_over
             target_image = img
         self.win.destroy()
 
-    def selectStart(self, event):
+    def select_start(self, event):
         self.is_selecting = True
-        self.area.setStartPoint(event.x, event.y)
+        self.area.set_start_point(event.x, event.y)
         # print('Select', event)
 
-    def changeSelectionArea(self, event):
+    def change_selection_area(self, event):
         if self.is_selecting:
-            self.area.updateEndPoint(event.x, event.y)
+            self.area.update_end_point(event.x, event.y)
             # print(event)
 
-    def selectDone(self, event):
+    def select_done(self, event):
         # self.area.updateEndPoint(event.x, event.y)
         self.is_selecting = False
 
 
 if __name__ == "__main__":
-    win = window()
+    win = Window()
