@@ -14,6 +14,7 @@ from win32api import GetSystemMetrics
 from img2inchi_transformer import Img2InchiTransformerModel
 from pkg.utils.general import Config
 from pkg.utils.vocab import vocab as vocabulary
+from pkg.utils.utils import num_param
 
 
 def get_real_resolution():
@@ -51,21 +52,27 @@ def auto_fit(image):
 
 
 class Window:
+    target_image = None
+
     def __init__(self):
         self.win = tkinter.Tk()
         self.i = 0
         global root
         root = self.win
-        self.target_image = None
         self.win.title('img2inchi')
-        self.win.geometry('1000x1000')
-        self.win.maxsize(1000, 1000)
-        self.win.minsize(1000, 1000)
+        self.win.geometry('1000x950')
+        self.win.maxsize(1000, 950)
+        self.win.minsize(1000, 950)
         self.imglabel = None
         self.inchi = None
         self.charLabel = None
+        self.charsLabel = None
+        self.model_info_label = None
+        self.temp_result = ''
+        self.charsLabel = tkinter.Label(self.win, textvariable=self.temp_result, font=("Arial", 20))
+        self.charsLabel.place(x=200, y=620)
         self.text = tkinter.Text(self.win, width=85, height=7)
-        self.text.place(x=200, y=700)
+        self.text.place(x=200, y=680)
         self.button_open_model = tkinter.Button(self.win, text="Choose Model", font=('Arial', 12),
                                                 command=lambda: self.open_model(), width=15, height=1)
         self.button_open_model.place(x=10, y=50)
@@ -105,6 +112,17 @@ class Window:
             if self.model is not None:
                 self.button_transform.config(state=tkinter.NORMAL)
                 self.button_next_attn.config(state=tkinter.NORMAL)
+            if self.model_info_label is not None:
+                self.model_info_label.destroy()
+            model_info_text = "Model name：" + "\n" + config.model_name + "\n" + \
+                              "Parameter number: " + "\n" + str(num_param(self.model.model)) + "\n"
+            if config.model_name == "transformer":
+                model_info_text = model_info_text + \
+                                  "Feature extractor" + "\n" + config.transformer["extractor_name"] + "\n" + \
+                                  "Encoder layers" + "\n" + str(config.transformer["num_encoder_layers"]) + "\n" + \
+                                  "Decoder layers" + "\n" + str(config.transformer["num_decoder_layers"])
+            self.model_info_label = tkinter.Label(self.win, text=model_info_text, font=("Consolas", 12))
+            self.model_info_label.place(x=810, y=200)
 
     def importimg(self):
         img_dir = askopenfilenames()
@@ -112,6 +130,7 @@ class Window:
         target_image = cv2.cvtColor(target_image, cv2.COLOR_BGR2GRAY)
         self.target_image = target_image
         if target_image is not None:
+            self.temp_result = ''
             if self.imglabel:
                 self.imglabel.destroy()
             if self.charLabel:
@@ -123,6 +142,7 @@ class Window:
             self.imglabel.place(x=250, y=10)
             self.text.insert("end", "Import image succeed!\n")
             self.flag = 0
+            self.button_img_process.config(state=tkinter.NORMAL)
             self.win.mainloop()
 
     def imgprocess(self):
@@ -158,6 +178,7 @@ class Window:
         self.imglabel.place(x=250, y=10)
         self.text.insert("end", "process image succeed!\n")
         self.flag = 1
+        self.button_img_process.config(state=tkinter.DISABLED)
         self.win.mainloop()
 
     def transform(self):
@@ -221,27 +242,30 @@ class Window:
         self.charLabel = tkinter.Label(self.win,
                                        text="Char:\n" + now_attn_char[9:len(now_attn_char)], font=("Arial", 30))
         self.charLabel.place(x=830, y=500)
+        if self.temp_result == '':
+            self.temp_result = now_attn_char
+        else:
+            self.temp_result = self.temp_result + now_attn_char[9:len(now_attn_char)]
         self.win.mainloop()
 
     def screenshot(self):
         self.win.state('icon')
-        global screenshot_over
-        screenshot_over = False
         s = ScreenShot(self.win)
         self.win.wait_window(s.win)
         self.win.update()
         self.win.state('normal')
-        global target_image
-        if target_image is not None:
+        if self.target_image is not None:
             if self.imglabel:
                 self.imglabel.destroy()
             if self.charLabel:
                 self.charLabel.destroy()
-            photo = ImageTk.PhotoImage(image=Image.fromarray(auto_fit(target_image)))
+            self.temp_result = ''
+            photo = ImageTk.PhotoImage(image=Image.fromarray(auto_fit(self.target_image)))
             self.imglabel = tkinter.Label(self.win, image=photo)
             self.imglabel.place(x=250, y=50)
             self.text.insert("end", "Take screenshot succeed!\n")
             self.flag = 0
+            self.button_img_process.config(state=tkinter.NORMAL)
             self.win.mainloop()
 
 
@@ -351,8 +375,7 @@ class ScreenShot:
         img = self.capture_image()
         if img is not None:
             img = cv2.cvtColor(np.asarray(img), cv2.COLOR_RGB2GRAY)
-            global target_image, screenshot_over
-            target_image = img
+            Window.target_image = img
         self.win.destroy()
 
     def select_start(self, event):
