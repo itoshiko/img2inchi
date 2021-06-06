@@ -2,7 +2,6 @@ import tkinter
 import tkinter.messagebox
 from tkinter.filedialog import *
 
-import os
 import cv2
 import numpy as np
 import torch
@@ -58,13 +57,6 @@ class Window:
         global root
         root = self.win
         self.target_image = None
-
-        model_config = os.getcwd() + '/model_weights/e10d20_lr_0.1/export_config.yaml'
-        config = Config(model_config)
-        self.my_vocab = vocabulary(root=config.path_train_root, vocab_dir=config.vocab_dir)
-        self.model = Img2InchiTransformerModel(config, output_dir='', vocab=self.my_vocab, need_output=False)
-        self.model.build_pred(os.getcwd() + '/model_weights/e10d20_lr_0.1/model.ckpt', config=config)
-
         self.win.title('img2inchi')
         self.win.geometry('1000x1000')
         self.win.maxsize(1000, 1000)
@@ -73,24 +65,46 @@ class Window:
         self.inchi = None
         self.charLabel = None
         self.text = tkinter.Text(self.win, width=85, height=7)
-        self.text.place(x=200, y=650)
-        b1 = tkinter.Button(self.win, text="Import Image", font=('Arial', 12), command=lambda: self.importimg(),
-                            width=15, height=1)
-        b1.place(x=10, y=50)
-        b2 = tkinter.Button(self.win, text="Screenshot", font=('Arial', 12), command=lambda: self.screenshot(),
-                            width=15, height=1)
-        b2.place(x=10, y=130)
-        b3 = tkinter.Button(self.win, text="Begin Transform", font=('Arial', 12), command=lambda: self.transform(),
-                            width=15, height=1)
-        b3.place(x=10, y=380)
-        b4 = tkinter.Button(self.win, text="next attention image", font=('Arial', 12), command=lambda: self.nextimg(),
-                            width=15, height=1)
-        b4.place(x=400, y=750)
-        b5 = tkinter.Button(self.win, text="image preprocess", font=('Arial', 12), command=lambda: self.imgprocess(),
-                            width=15, height=1)
-        b5.place(x=10, y=300)
+        self.text.place(x=200, y=700)
+        self.button_open_model = tkinter.Button(self.win, text="Choose Model", font=('Arial', 12),
+                                                command=lambda: self.open_model(), width=15, height=1)
+        self.button_open_model.place(x=10, y=50)
+        self.button_import_img = tkinter.Button(self.win, text="Import Image", font=('Arial', 12),
+                                                command=lambda: self.importimg(), width=15, height=1)
+        self.button_import_img.place(x=10, y=200)
+        self.button_screenshot = tkinter.Button(self.win, text="Screenshot", font=('Arial', 12),
+                                                command=lambda: self.screenshot(), width=15, height=1)
+        self.button_screenshot.place(x=10, y=250)
+        self.button_transform = tkinter.Button(self.win, text="Begin Transform", font=('Arial', 12),
+                                               command=lambda: self.transform(), width=15, height=1)
+        self.button_transform.place(x=10, y=450)
+        self.button_transform.config(state=tkinter.DISABLED)
+        self.button_next_attn = tkinter.Button(self.win, text="next attention image", font=('Arial', 12),
+                                               command=lambda: self.nextimg(), width=15, height=1)
+        self.button_next_attn.place(x=10, y=500)
+        self.button_next_attn.config(state=tkinter.DISABLED)
+        self.button_img_process = tkinter.Button(self.win, text="image preprocess", font=('Arial', 12),
+                                                 command=lambda: self.imgprocess(), width=15, height=1)
+        self.button_img_process.place(x=10, y=400)
 
         self.win.mainloop()
+
+    def open_model(self):
+        config_dir = askopenfilenames(title='Select configuration of model',
+                                      filetypes=[('yaml config', '*.yaml')], initialdir='./')
+        model_dir = askopenfilenames(title='Select model file',
+                                     filetypes=[('model config', '*.ckpt')], initialdir='./')
+        try:
+            config = Config(config_dir[0])
+            self.my_vocab = vocabulary(root=config.path_train_root, vocab_dir=config.vocab_dir)
+            self.model = Img2InchiTransformerModel(config, output_dir='', vocab=self.my_vocab, need_output=False)
+            self.model.build_pred(model_dir[0], config=config)
+        except:
+            self.text.insert("end", "Error occurs in opening model！")
+        else:
+            if self.model is not None:
+                self.button_transform.config(state=tkinter.NORMAL)
+                self.button_next_attn.config(state=tkinter.NORMAL)
 
     def importimg(self):
         img_dir = askopenfilenames()
