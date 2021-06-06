@@ -43,12 +43,13 @@ screenshot_over = False
 
 def auto_fit(image):
     h, w = image.shape
+    print(h, w)
     if h > w:
         new_w = int(float(w) / float(h) * 500)
-        return cv2.resize(image, (500, new_w))
+        return cv2.resize(image, (new_w, 500))
     else:
         new_h = int(float(h) / float(w) * 500)
-        return cv2.resize(image, (new_h, 500))
+        return cv2.resize(image, (500, new_h))
 
 
 class Window:
@@ -107,7 +108,8 @@ class Window:
             self.model = Img2InchiTransformerModel(config, output_dir='', vocab=self.my_vocab, need_output=False)
             self.model.build_pred(model_dir[0], config=config)
         except:
-            self.text.insert("end", "Error occurs in opening model！")
+            self.text.insert("end", "Error occurs in opening model\n")
+            self.text.see(tkinter.END)
         else:
             if self.model is not None:
                 self.button_transform.config(state=tkinter.NORMAL)
@@ -126,9 +128,12 @@ class Window:
 
     def importimg(self):
         img_dir = askopenfilenames()
+        if len(img_dir) == 0:
+            self.win.mainloop()
+            return
         target_image = cv2.imread(img_dir[0].replace('/', '\\'))
         target_image = cv2.cvtColor(target_image, cv2.COLOR_BGR2GRAY)
-        self.target_image = target_image
+        Window.target_image = target_image
         if target_image is not None:
             self.temp_result.set('')
             if self.imglabel:
@@ -137,21 +142,25 @@ class Window:
                 self.charLabel.destroy()
             if target_image.shape != (512, 256):
                 self.text.insert("end", "The size of current image is " + str(target_image.shape) + "\n")
+                self.text.see(tkinter.END)
             photo = ImageTk.PhotoImage(image=Image.fromarray(auto_fit(target_image)))
             self.imglabel = tkinter.Label(self.win, image=photo)
             self.imglabel.place(x=250, y=10)
             self.text.insert("end", "Import image succeed!\n")
+            self.text.see(tkinter.END)
             self.flag = 0
             self.button_img_process.config(state=tkinter.NORMAL)
             self.win.mainloop()
 
     def imgprocess(self):
-        target_img = self.target_image
+        target_img = Window.target_image
         if target_img is None:
             self.text.insert("end", "No image imported!\n")
+            self.text.see(tkinter.END)
             return
         if self.flag == 2:
             self.text.insert("end", "image has been processed!\n")
+            self.text.see(tkinter.END)
             return
         if self.imglabel:
             self.imglabel.destroy()
@@ -172,11 +181,12 @@ class Window:
         target_img = cv2.bitwise_not(target_img)
         target_img = cv2.morphologyEx(target_img, cv2.MORPH_CLOSE,
                                       cv2.getStructuringElement(cv2.MORPH_CROSS, (3, 3)))
-        self.target_image = target_img
+        Window.target_image = target_img
         photo = ImageTk.PhotoImage(image=Image.fromarray(target_img))
         self.imglabel = tkinter.Label(self.win, image=photo)
         self.imglabel.place(x=250, y=10)
         self.text.insert("end", "process image succeed!\n")
+        self.text.see(tkinter.END)
         self.flag = 1
         self.button_img_process.config(state=tkinter.DISABLED)
         self.win.mainloop()
@@ -184,9 +194,11 @@ class Window:
     def transform(self):
         if self.flag == 0:
             self.text.insert("end", "image needs to be processed first!\n")
+            self.text.see(tkinter.END)
             return
         self.flag = 2
-        target_img = self.target_image
+        self.i = 0
+        target_img = Window.target_image
         img = torch.from_numpy(target_img).float()
         img = img.repeat(1, 3, 1, 1)
         result = self.model.predict(img, mode="beam")
@@ -194,6 +206,7 @@ class Window:
         seq = self.my_vocab.decode(result[0])
         self.text.insert("end", seq)
         self.text.insert("end", "\n")
+        self.text.see(tkinter.END)
         attn = self.model.get_attention(img, result)
         attn = attn.cpu().numpy()
         attn = attn[0, 0]
@@ -208,7 +221,7 @@ class Window:
         raw_img = cv2.resize(raw_img, (imgw, imgh), interpolation=cv2.INTER_LANCZOS4)
         raw_img = np.reshape(np.transpose(np.tile(raw_img, reps=(4, 2, 1, 1)), (0, 2, 1, 3)),
                              newshape=(4 * imgh, 2 * imgw))
-        self.target_image = raw_img
+        Window.target_image = raw_img
         attn = np.transpose(attn / np.max(attn, axis=0, keepdims=True), (1, 2, 0))
         attn = cv2.resize(attn, (4 * imgh, 2 * imgw), interpolation=cv2.INTER_LANCZOS4) * 150
         attn[attn < 0] = 0
@@ -220,6 +233,7 @@ class Window:
     def nextimg(self):
         if self.flag != 3:
             self.text.insert("end", "image needs to be transformed first!\n")
+            self.text.see(tkinter.END)
             return
         if self.imglabel:
             self.imglabel.destroy()
@@ -227,7 +241,7 @@ class Window:
             self.charLabel.destroy()
         self.i += 1
         # global target_image
-        target_img = self.target_image
+        target_img = Window.target_image
         target_img = target_img.astype(np.uint8)
         now_attn = self.attn[:, :, self.i].astype(np.uint8)
         now_attn = cv2.applyColorMap(now_attn, cv2.COLORMAP_JET)
@@ -255,18 +269,18 @@ class Window:
         self.win.state('icon')
         s = ScreenShot(self.win)
         self.win.wait_window(s.win)
-        self.win.update()
         self.win.state('normal')
-        if self.target_image is not None:
+        if Window.target_image is not None:
             if self.imglabel:
                 self.imglabel.destroy()
             if self.charLabel:
                 self.charLabel.destroy()
             self.temp_result.set('')
-            photo = ImageTk.PhotoImage(image=Image.fromarray(auto_fit(self.target_image)))
+            photo = ImageTk.PhotoImage(image=Image.fromarray(auto_fit(Window.target_image)))
             self.imglabel = tkinter.Label(self.win, image=photo)
             self.imglabel.place(x=250, y=50)
             self.text.insert("end", "Take screenshot succeed!\n")
+            self.text.see(tkinter.END)
             self.flag = 0
             self.button_img_process.config(state=tkinter.NORMAL)
             self.win.mainloop()
