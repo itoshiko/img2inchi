@@ -96,6 +96,12 @@ class Img2InchiTransformerModel(Img2InchiModel):
         self._config.save(self._config_export_path)
         self.logger.info("- Saved model in {}".format(self._model_dir))
 
+    def restore(self, map_location):
+        super().restore(map_location=map_location)
+        tr_extractor = self._config.transformer["tr_extractor"]
+        print(f"Train_Extractor = {tr_extractor}")
+        self.model.features_extractor.set_tr(tr_extractor)
+
     def write_graph(self):
         rand_img = torch.rand((1, 3, 256, 512), device=self.device)
         rand_seq = torch.randint(0, self.vocab_size, (1, 200), device=self.device)

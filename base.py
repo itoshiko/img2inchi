@@ -89,7 +89,7 @@ class BaseModel(object):
     def _init_multi_gpu(self):
         device_ids = range(torch.cuda.device_count())
         self.model = torch.nn.DataParallel(self.model, device_ids = device_ids)
-        self.logger.info("  - multi-gpu: cuda:" + str(device_ids))
+        self.logger.info("  - multi-gpu: cuda:" + str(list(device_ids)))
 
     def _init_writer(self):
         self.writer = SummaryWriter(log_dir=self.write_path)
