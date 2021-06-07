@@ -104,11 +104,11 @@ class Window:
                                      filetypes=[('model config', '*.ckpt')], initialdir='./')
         try:
             config = Config(config_dir[0])
-            self.my_vocab = vocabulary(root=config.path_train_root, vocab_dir=config.vocab_dir)
+            self.my_vocab = vocabulary(root=config.vocab_root, vocab_dir=config.vocab_dir)
             self.model = Img2InchiTransformerModel(config, output_dir='', vocab=self.my_vocab, need_output=False)
             self.model.build_pred(model_dir[0], config=config)
-        except:
-            self.text.insert("end", "Error occurs in opening model\n")
+        except Exception as e:
+            self.text.insert("end", f"Error occurs in opening model: {e}\n")
             self.text.see(tkinter.END)
         else:
             if self.model is not None:
