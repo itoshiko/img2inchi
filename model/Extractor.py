@@ -52,3 +52,7 @@ class FeaturesExtractor(nn.Module):
             ft = self.extractor(img)                    # (batch_size, n_feature, *default_size)
         ft = ft.permute(0, 2, 3, 1).contiguous()        # (batch_size, output_w, output_h, n_feature)
         return self.fc(ft)
+    
+    def set_tr(self, tr_extractor=False):
+        for param in self.extractor.parameters():
+            param.requires_grad = tr_extractor
