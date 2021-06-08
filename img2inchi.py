@@ -150,7 +150,7 @@ class Img2InchiModel(BaseModel):
             predict_scores = 0
             num_predicted = 0
             batch_size = self._config.batch_size * 3
-            test_loader = self.prepare_data(batch_size, test_set, False)
+            test_loader = self.prepare_data(batch_size, test_set)
             for i, (img, seq) in enumerate(test_loader):
                 predict_score = torch.sum(self.calculate_reward(self.predict(img=img, mode='greedy'), 
                                         self._vocab.decode(seq))).item()
