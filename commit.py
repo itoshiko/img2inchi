@@ -10,8 +10,8 @@ import cv2
 import numpy as np
 import torch
 
-from img2inchi import Img2InchiModel
-from img2inchi_transformer import Img2InchiTransformerModel
+from img2inchi_model.img2inchi import Img2InchiModel
+from img2inchi_model.img2inchi_transformer import Img2InchiTransformerModel
 from pkg.utils.general import Config
 from pkg.utils.vocab import vocab as vocabulary
 from predict import pre_process

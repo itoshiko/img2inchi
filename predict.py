@@ -6,8 +6,8 @@ import click
 import numpy as np
 
 from pkg.utils.general import Config
-from img2inchi_lstm import Img2InchiLstmModel
-from img2inchi_transformer import Img2InchiTransformerModel
+from img2inchi_model.img2inchi_lstm import Img2InchiLstmModel
+from img2inchi_model.img2inchi_transformer import Img2InchiTransformerModel
 from pkg.utils.vocab import vocab as vocabulary
 from pkg.preprocess.img_process import preprocess
 from pkg.utils.utils import create_dirs

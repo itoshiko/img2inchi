@@ -1,9 +1,9 @@
 import click
 import os
 
-from data_gen import Img2SeqDataset
-from img2inchi_lstm import Img2InchiLstmModel
-from img2inchi_transformer import Img2InchiTransformerModel
+from data_loader.data_gen import Img2SeqDataset
+from img2inchi_model.img2inchi_lstm import Img2InchiLstmModel
+from img2inchi_model.img2inchi_transformer import Img2InchiTransformerModel
 from pkg.utils.general import Config
 from pkg.utils.vocab import vocab as vocabulary
 
