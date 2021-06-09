@@ -132,6 +132,7 @@ dmypy.json
 *.pth
 *.ckpt
 *.cpkt
+*.ckpt.tmp
 2021-*/
 
 # data
