@@ -175,6 +175,8 @@ class Window:
         else:
             wh_ratio = (w / h) - (512 / 256)
             pad_v = int(abs(wh_ratio) * h // 2)
+        target_img[target_img > 180] = 255
+        target_img[target_img <= 180] = 0
         target_img = np.pad(target_img, [(pad_h, pad_h), (pad_v, pad_v)], mode='constant', constant_values=255)
         target_img = cv2.resize(target_img, (512, 256), interpolation=cv2.INTER_LANCZOS4)
         target_img = (target_img / target_img.max() * 255).astype(np.uint8)
