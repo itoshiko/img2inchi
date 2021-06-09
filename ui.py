@@ -189,6 +189,7 @@ class Window:
         self.text.see(tkinter.END)
         self.flag = 1
         self.button_img_process.config(state=tkinter.DISABLED)
+        self.button_transform.config(state=tkinter.NORMAL)
         self.win.mainloop()
 
     def transform(self):
@@ -229,17 +230,20 @@ class Window:
 
         self.attn = attn
         self.flag = 3
+        self.button_transform.config(state=tkinter.DISABLED)
 
     def nextimg(self):
         if self.flag != 3:
             self.text.insert("end", "image needs to be transformed first!\n")
             self.text.see(tkinter.END)
             return
+        self.i += 1
+        if self.i >= self.attn.shape[2]:
+            return
         if self.imglabel:
             self.imglabel.destroy()
         if self.charLabel:
             self.charLabel.destroy()
-        self.i += 1
         # global target_image
         target_img = Window.target_image
         target_img = target_img.astype(np.uint8)
