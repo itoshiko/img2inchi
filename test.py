@@ -4,7 +4,7 @@ from torch.nn.functional import batch_norm
 import model.Transformer as tfm
 import torch
 import torch.nn as nn
-from data_gen import Img2SeqDataset, get_dataLoader
+from data_loader.data_gen import Img2SeqDataset, get_dataLoader
 import time, os
 from torchvision import models
 from pkg.utils.vocab import vocab

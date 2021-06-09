@@ -1,7 +1,7 @@
 
 from typing import Iterable, Union
-from base import BaseModel
-from data_gen import get_dataLoader
+from img2inchi_model.base import BaseModel
+from data_loader.data_gen import get_dataLoader
 from pkg.utils.BeamSearchLSTM import BeamSearchLSTM
 from pkg.utils.BeamSearchTransformer import BeamSearchTransformer
 from math import ceil

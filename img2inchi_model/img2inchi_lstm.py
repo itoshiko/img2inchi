@@ -1,9 +1,8 @@
 import torch
 
-from base import BaseModel
 from model.Img2Seq import Img2Seq
 from pkg.utils.utils import num_param
-from img2inchi import Img2InchiModel
+from img2inchi_model.img2inchi import Img2InchiModel
 
 PAD_ID = 0
 SOS_ID = 1
