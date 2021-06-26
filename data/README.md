@@ -15,7 +15,7 @@
 ```bash
 python prepare.py --root <project_root> --pre_config <prepare_config>
 # --root 项目的根目录，默认为 "./"
-# --vocab_config 词表配置文件目录（根目录的相对路径），默认为 "./config/vocab_small.yaml"
+# --vocab_config 词表配置文件目录（根目录的相对路径），默认为 "./config/vocab.yaml"
 ```
 
 配置文件中各项配置作用如下表：
