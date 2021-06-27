@@ -4,11 +4,11 @@
 
 <img src="./figures/1.png" style="zoom:60%;" />
 
+## 安装依赖
+
 ## 配置文件
 将config_templates文件夹复制一份为config文件夹，所有的配置将默认从这个文件夹读取。
 具体的配置稍后说明。
-
-## 安装依赖
 
 ## 准备训练数据
 
@@ -16,7 +16,7 @@
 在Kaggle上直接下载数据到/data下，解压到data/origin(推荐)。
 https://www.kaggle.com/c/bms-molecular-translation
 
-确认解压后的数据文件夹(data/origin)：
+确认解压后的数据文件夹(data/origin)包括：
 * test/
 * train/
 * extra_approved_InChIs.csv
@@ -67,7 +67,7 @@ python prepare.py --root <project_root> --pre_config <prepare_config>
 
 | 名称                         | 作用                                                      | 示例                           |
 | ---------------------------- | -------------------------------------------------------- | ------------------------------ |
-| `model_name`                 | 模型名称，`'transformer'`或`'lstm'`。字符串               | `'transformer'`                  |
+| `model_name`                 | 模型名称，`'transformer'`或`'lstm'`。字符串               | `'transformer'`                |
 | `max_seq_len`                | 最大序列长度，请勿修改。整数型                             | `300`                          |
 | `batch_size`                 | Batch size，请根据gpu显存大小适当调整。整数型              | `50`                           |
 | `eval_batch_size`            | 评估阶段的Batch size，一般可以batch_size大很多。整数型     | `800`                          |
@@ -79,10 +79,21 @@ python prepare.py --root <project_root> --pre_config <prepare_config>
 | `n_epochs`                   | 训练的轮数。整数型                                        | `20`                           |
 | `SCST_predict_mode`          | SCST中推理的模式，可以为`'greedy', 'beam'`。字符串        | `'greedy'`                     |
 | `SCST_lr`                    | SCST学习率，一般较小。浮点型                              | `0.000001`                     |
-| `gradient_accumulate_num`    | 梯度累积次数，将梯度累积次数乘以batch_size得到实际Batch大小，一般达到200即可。整数型| `4` |
+| `gradient_accumulate_num`    | 梯度累积次数，将梯度累积次数乘以batch_size得到实际Batch大小，一般达到200即可。整数型| `4`     |
 | `beam_width`                 | 束搜索的宽度。整数型                                      | `5`                            |
 
 ### 训练transformer
+
+#### 准备预训练模型
+先运行model_weights/load resnet.py文件，下载PyTorch中的预训练resnet模型。  
+训练中需要的预训练特征提取器可以自行训练，也可以使用我们的预训练模型。  
+如果要自行训练预训练模型，请先修改config/pretrain_config.yaml文件中的参数，详细含义参考本节给出的表格。  
+一般情况下，transformer的参数请不要修改。  
+然后在项目根目录下运行：
+```bash
+python train.py --model_name transformer --instance pretrain --data ./config/data.yaml --model ./config/pretrain_config.yaml
+```
+
 #### 配置模型参数
 预置模板为transformer_config.yaml  
 可以根据自己的需求直接调用或者在此基础上修改配置。  
