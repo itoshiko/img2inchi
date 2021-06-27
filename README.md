@@ -1,10 +1,33 @@
 # img2inchi
 
 本项目可以将分子骨架式转换为InChI表达式。
-
-<img src="./figures/1.png" style="zoom:60%;" />
+![](./figures/1.png)
 
 ## 安装依赖
+### 使用Anaconda
+如果使用Anaconda，可以通过项目根目录下的`environment.yml`文件在电脑上创建anaconda python环境，具体命令为：
+```bash
+conda env create -f environment.yml
+```
+上面命令会安装在conda默认的环境路径。如果要指定其它安装路径，使用-p选项
+```bash
+conda env create -f environment.yml -p /home/user/anaconda3/envs/env_name
+```
+### 手动安装
+由于上述自动安装的方法经常报错，所以可以使用手动安装，主要的依赖如下：
+
+| 包名         | 版本        | 包名          | 版本   |
+|--------------|-------------|---------------|--------|
+| `numpy`        | 1.9.5       | `opencv-python` | 4.4.0  |
+| `pandas`       | 1.2.1       | `pyyaml`        | 5.3.1  |
+| `scikit-image` | 0.18.1      | `scipy`        | 1.6.0  |
+| `tensorboard`  | 2.5.0       | `tensorboardx`  | 2.2    |
+| `torch`        | 1.7.1+cu110 | `tqdm`          | 4.56.0 |
+| `matplotlib`   | 3.3.3       | `click`         | 7.1.2  |
+| `pyqt`         | 5.9.2       | `sqlite`        | 3.35.4 |
+| `python-levenshtein` | 0.12.2 |
+
+上述版本不一定要完全一致，一般来说比上面的版本高就可以了。另，这个表可能不全，反正跑的时候报少啥就装啥就完事儿了（逃
 
 ## 配置文件
 将config_templates文件夹复制一份为config文件夹，所有的配置将默认从这个文件夹读取。
@@ -142,5 +165,11 @@ python train.py --instance my_train --data ./config/data.yaml
 ### 使用SCST
 未维护，可能无法运行
 ## GUI
+在根目录下，使用：
+```bash
+python ui.py
+```
+来启动图形界面，图形界面的各项功能如下所示：
+![](./figures/2.bmp)
 
 ## 参考文献
